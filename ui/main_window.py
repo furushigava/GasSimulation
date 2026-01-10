@@ -155,12 +155,16 @@ class MainWindow(QMainWindow):
     
     def update_display(self, volume, energy, pressure, avg_velocity, log_entry):
         """Обновление отображения данных"""
+        # Проверяем, был ли пользователь внизу списка перед добавлением
+        scrollbar = self.log_display.verticalScrollBar()
+        was_at_bottom = scrollbar.value() >= scrollbar.maximum() - 20
+        
         # Обновление логов
         self.log_display.append(log_entry)
         
-        # Прокрутка вниз
-        scrollbar = self.log_display.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        # Прокрутка вниз только если пользователь был внизу
+        if was_at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
         
         # Обновление параметров
         self.lbl_mode.setText(f"Режим: {self.simulation.mode}")
