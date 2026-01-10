@@ -117,11 +117,11 @@ class SimulationWidget(QWidget):
         
         # Рисуем внешнюю границу
         painter.setPen(QPen(QColor(*BORDER_COLOR_OUTER), 5))
-        painter.drawRect(0, 0, self.width0, self.height0)
+        painter.drawRect(0, 0, int(self.width0), int(self.height0))
         
         # Рисуем текущую границу сосуда
         painter.setPen(QPen(QColor(*BORDER_COLOR_INNER), 5))
-        painter.drawRect(0, 0, self.width, self.height)
+        painter.drawRect(0, 0, int(self.width), int(self.height))
         
         # Рисуем частицы
         for particle in self.particles:

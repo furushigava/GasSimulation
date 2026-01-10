@@ -23,11 +23,20 @@ def update_correlation_graphs(figure, canvas, data):
         if len(data['volume']) > 2:
             x = np.array(data['volume'])
             y = np.array(data['pressure'])
-            coeffs = np.polyfit(x, y, 1)
-            poly = np.poly1d(coeffs)
-            ax1.plot(x, poly(x), 'r-', linewidth=2, 
-                    label=f'y = {coeffs[0]:.3f}x + {coeffs[1]:.3f}')
-            ax1.legend()
+            # Проверяем, что данные имеют достаточный разброс для регрессии
+            x_range = np.ptp(x)  # max - min
+            if x_range > 1e-10:
+                try:
+                    import warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore', np.RankWarning)
+                        coeffs = np.polyfit(x, y, 1)
+                    poly = np.poly1d(coeffs)
+                    ax1.plot(x, poly(x), 'r-', linewidth=2, 
+                            label=f'y = {coeffs[0]:.3f}x + {coeffs[1]:.3f}')
+                    ax1.legend()
+                except Exception:
+                    pass  # Пропускаем регрессию при ошибках
     
     ax1.set_xlabel('Объем')
     ax1.set_ylabel('Давление')
@@ -91,7 +100,14 @@ def update_correlation_graphs(figure, canvas, data):
                 data['avg_velocity'][:n]
             ])
             
-            corr_matrix = np.corrcoef(matrix)
+            # Проверяем, что данные имеют разброс (избегаем деления на ноль)
+            std_vals = np.std(matrix, axis=1)
+            if np.all(std_vals > 1e-10):
+                corr_matrix = np.corrcoef(matrix)
+            else:
+                # Если какой-то ряд константный, заполняем NaN
+                corr_matrix = np.full((4, 4), np.nan)
+                np.fill_diagonal(corr_matrix, 1.0)
             im = ax6.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
             
             # Добавляем текст

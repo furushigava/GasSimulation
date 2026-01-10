@@ -67,7 +67,7 @@ def update_phase_graphs(figure, canvas, data):
         n = min(len(data['time']), len(data['pressure']), len(data['volume']))
         scatter = ax4.scatter(data['volume'][:n], data['pressure'][:n], 
                             c=data['time'][:n], cmap='viridis', alpha=0.6, s=20)
-        plt.colorbar(scatter, ax=ax4, label='Время')
+        figure.colorbar(scatter, ax=ax4, label='Время')
         ax4.set_xlabel('Объем')
         ax4.set_ylabel('Давление')
         ax4.set_title('Параметрический график (цвет = время)')
@@ -76,21 +76,33 @@ def update_phase_graphs(figure, canvas, data):
     # 5. Изокванты (линии уровня)
     ax5 = figure.add_subplot(235)
     if data.get('volume') and data.get('pressure') and len(data['volume']) > 10:
-        # Создаем сетку для изоквант
-        points = np.array([data['volume'], data['pressure']]).T
-        values = np.array(data['temperature'][:len(points)])
-        
-        # Сетка для интерполяции
-        xi = np.linspace(min(data['volume']), max(data['volume']), 50)
-        yi = np.linspace(min(data['pressure']), max(data['pressure']), 50)
-        xi, yi = np.meshgrid(xi, yi)
-        
-        # Интерполяция
-        zi = griddata(points, values, (xi, yi), method='cubic')
-        
-        if not np.isnan(zi).all():
-            contour = ax5.contour(xi, yi, zi, levels=10, cmap='coolwarm')
-            ax5.clabel(contour, inline=True, fontsize=8)
+        try:
+            # Создаем сетку для изоквант
+            points = np.array([data['volume'], data['pressure']]).T
+            values = np.array(data['temperature'][:len(points)])
+            
+            # Проверяем, что данные не вырождены (имеют достаточный разброс)
+            vol_range = max(data['volume']) - min(data['volume'])
+            pres_range = max(data['pressure']) - min(data['pressure'])
+            
+            if vol_range > 1e-10 and pres_range > 1e-10:
+                # Сетка для интерполяции
+                xi = np.linspace(min(data['volume']), max(data['volume']), 50)
+                yi = np.linspace(min(data['pressure']), max(data['pressure']), 50)
+                xi, yi = np.meshgrid(xi, yi)
+                
+                # Интерполяция - используем 'linear' как запасной вариант при ошибках
+                try:
+                    zi = griddata(points, values, (xi, yi), method='cubic')
+                except Exception:
+                    zi = griddata(points, values, (xi, yi), method='linear')
+                
+                if zi is not None and not np.isnan(zi).all():
+                    contour = ax5.contour(xi, yi, zi, levels=10, cmap='coolwarm')
+                    ax5.clabel(contour, inline=True, fontsize=8)
+                    ax5.scatter(data['volume'], data['pressure'], alpha=0.5, s=10)
+        except Exception:
+            # При любой ошибке просто рисуем точки без интерполяции
             ax5.scatter(data['volume'], data['pressure'], alpha=0.5, s=10)
         
         ax5.set_xlabel('Объем')

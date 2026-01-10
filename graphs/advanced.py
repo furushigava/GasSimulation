@@ -59,7 +59,7 @@ def update_advanced_graphs(figure, canvas, data):
         
         im = ax2.imshow(cwt_matrix, aspect='auto', cmap='viridis', 
                        extent=[data['time'][0], data['time'][-1], scales[-1], scales[0]])
-        plt.colorbar(im, ax=ax2, label='Амплитуда')
+        figure.colorbar(im, ax=ax2, label='Амплитуда')
         ax2.set_xlabel('Время')
         ax2.set_ylabel('Масштаб')
         ax2.set_title('Вейвлет-преобразование давления')
@@ -169,7 +169,9 @@ def update_advanced_graphs(figure, canvas, data):
         ax6.fill_between(np.linspace(0, 1, n), cumulative_vel_norm, perfect_line, alpha=0.3)
         
         # Коэффициент Джини
-        area_under_curve = np.trapz(cumulative_vel_norm, dx=1/n)
+        # Используем np.trapezoid (для NumPy 2.0+) или np.trapz (для старых версий)
+        trapz_func = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+        area_under_curve = trapz_func(cumulative_vel_norm, dx=1/n) if trapz_func else 0.5
         gini = 1 - 2 * area_under_curve
         
         ax6.text(0.6, 0.2, f'Коэфф. Джини: {gini:.3f}', 
