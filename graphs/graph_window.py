@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
-from config import GRAPH_WINDOW_WIDTH, GRAPH_WINDOW_HEIGHT, FIGURE_SIZE
+from config import GRAPH_WINDOW_WIDTH, GRAPH_WINDOW_HEIGHT, FIGURE_SIZE, GRAPH_UPDATE_INTERVAL
 from .thermodynamic import update_thermodynamic_graphs
 from .distribution import update_distribution_graphs
 from .kinetic import update_kinetic_graphs
@@ -30,7 +30,11 @@ class GraphWindow(QDialog):
         self.setGeometry(100, 100, GRAPH_WINDOW_WIDTH, GRAPH_WINDOW_HEIGHT)
         
         # Подключение сигнала обновления данных
-        self.simulation.data_updated.connect(self.update_all_graphs)
+        self.simulation.data_updated.connect(self.on_data_updated)
+        
+        # Счетчик для регулировки частоты обновления графиков
+        self.update_counter = 0
+        self.cached_data = {}
         
         # Создание вкладок
         self.tab_widget = QTabWidget()
@@ -66,6 +70,9 @@ class GraphWindow(QDialog):
         self.btn_close.clicked.connect(self.close)
         self.btn_clear.clicked.connect(self.clear_graphs)
         self.btn_save.clicked.connect(self.save_graphs)
+        
+        # Обновление графика при переключении вкладки
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         
         # Инициализация графиков
         self.init_graphs()
@@ -193,10 +200,49 @@ class GraphWindow(QDialog):
     
     def init_graphs(self):
         """Инициализация всех графиков"""
-        self.update_all_graphs({})
+        self.update_current_tab({})
+    
+    def on_data_updated(self, data):
+        """Обработчик обновления данных с регулировкой частоты"""
+        self.cached_data = data
+        self.update_counter += 1
+        
+        # Обновляем графики только каждые GRAPH_UPDATE_INTERVAL тиков
+        if self.update_counter >= GRAPH_UPDATE_INTERVAL:
+            self.update_counter = 0
+            self.update_current_tab(data)
+    
+    def update_current_tab(self, data):
+        """Обновление только текущей активной вкладки"""
+        try:
+            current_index = self.tab_widget.currentIndex()
+            
+            if current_index == 0:
+                update_thermodynamic_graphs(self.figure_thermo, self.canvas_thermo, data)
+            elif current_index == 1:
+                update_distribution_graphs(self.figure_dist, self.canvas_dist, data)
+            elif current_index == 2:
+                update_kinetic_graphs(self.figure_kinetic, self.canvas_kinetic, data)
+            elif current_index == 3:
+                update_correlation_graphs(self.figure_corr, self.canvas_corr, data)
+            elif current_index == 4:
+                update_statistical_graphs(self.figure_stat, self.canvas_stat, data)
+            elif current_index == 5:
+                update_phase_graphs(self.figure_phase, self.canvas_phase, data)
+            elif current_index == 6:
+                update_advanced_graphs(self.figure_advanced, self.canvas_advanced, data)
+            elif current_index == 7:
+                update_realtime_graphs(self.figure_realtime, self.canvas_realtime, data)
+        except Exception as e:
+            print(f"Ошибка при обновлении графиков: {e}")
+    
+    def on_tab_changed(self, index):
+        """Обработчик переключения вкладки - обновляем новую вкладку"""
+        if self.cached_data:
+            self.update_current_tab(self.cached_data)
     
     def update_all_graphs(self, data):
-        """Обновление всех графиков"""
+        """Обновление всех графиков (для сохранения)"""
         try:
             update_thermodynamic_graphs(self.figure_thermo, self.canvas_thermo, data)
             update_distribution_graphs(self.figure_dist, self.canvas_dist, data)

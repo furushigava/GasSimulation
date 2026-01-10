@@ -14,7 +14,10 @@ from config import (
     SIMULATION_WIDTH,
     SIMULATION_HEIGHT,
     PARTICLE_COUNT,
-    MODE_COLORS
+    MODE_COLORS,
+    LABEL_TEXT_COLOR,
+    LABEL_BG_COLOR,
+    GROUP_TEXT_COLOR
 )
 
 
@@ -70,12 +73,13 @@ class MainWindow(QMainWindow):
         
         for lbl in [self.lbl_particles, self.lbl_mode, self.lbl_energy, 
                    self.lbl_pressure, self.lbl_volume, self.lbl_velocity]:
-            lbl.setStyleSheet("background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
+            lbl.setStyleSheet(f"background-color: {LABEL_BG_COLOR}; color: {LABEL_TEXT_COLOR}; padding: 5px; border-radius: 3px;")
             stats_layout.addWidget(lbl)
         
         params_layout.addLayout(stats_layout, 3, 0, 1, 3)
         
         params_group.setLayout(params_layout)
+        params_group.setStyleSheet(f"QGroupBox {{ color: {GROUP_TEXT_COLOR}; font-weight: bold; }}")
         main_layout.addWidget(params_group)
         
         # 2. Нижняя часть: логи слева, демонстрация справа
@@ -84,11 +88,12 @@ class MainWindow(QMainWindow):
         
         # Логи (слева)
         log_group = QGroupBox("Логи симуляции")
+        log_group.setStyleSheet(f"QGroupBox {{ color: {GROUP_TEXT_COLOR}; font-weight: bold; }}")
         log_layout = QVBoxLayout()
         
         # Заголовок логов
         log_header = QLabel("Volume    Energy(Temp)   Pressure   Avg.Velocity  Time     Mode")
-        log_header.setStyleSheet("font-weight: bold; color: blue;")
+        log_header.setStyleSheet(f"font-weight: bold; color: #64b5f6;")
         log_layout.addWidget(log_header)
         
         self.log_display = QTextEdit()
