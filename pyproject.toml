@@ -1,0 +1,32 @@
+[project]
+name = "gas-simulation"
+version = "0.1.0"
+description = "Gas Simulation - Thermodynamic simulation with PyQt5"
+authors = [
+    {name = "Artemev Sviatoslav", email = "artemev.si@phystech.edu"}
+]
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "PyQt5>=5.15",
+    "pydantic>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+]
+
+[project.scripts]
+gas-simulation = "main:main"
+
+[tool.poetry]
+packages = [
+    { include = "graphs" },
+    { include = "models" },
+    { include = "schemas" },
+    { include = "simulation" },
+    { include = "ui" },
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -19,23 +19,23 @@
 
 ### Требования
 
-- Python 3.8+
-- PyQt5
-- NumPy
-- Matplotlib
-- SciPy
-- Pydantic
+- Python 3.12+
+- Poetry (менеджер зависимостей)
 
-### Установка зависимостей
+### Установка
 
 ```bash
-pip install PyQt5 numpy matplotlib scipy pydantic
+# Установка Poetry (если не установлен)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Установка зависимостей проекта
+poetry install
 ```
 
 ### Запуск
 
 ```bash
-python main.py
+poetry run python main.py
 ```
 
 ## 🎮 Основные возможности
