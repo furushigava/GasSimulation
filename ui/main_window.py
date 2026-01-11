@@ -56,23 +56,23 @@ class MainWindow(QMainWindow):
         self.btn_graphs = QPushButton("Показать графики")
         self.btn_statistics = QPushButton("Статистика")
         self.btn_settings = QPushButton("Настройки")
+        self.btn_exit = QPushButton("Выход")
         
-        # Настройка кнопок - размещаем в 4 ряда по 3 кнопки
+        # Настройка кнопок - размещаем по 4 кнопки в ряд
         buttons = [
-            self.btn_heat, self.btn_freeze, self.btn_expansion, 
-            self.btn_compression, self.btn_off, self.btn_stop, 
-            self.btn_reset, self.btn_graphs, self.btn_statistics,
-            self.btn_settings
+            self.btn_heat, self.btn_freeze, self.btn_expansion, self.btn_compression,
+            self.btn_off, self.btn_stop, self.btn_reset, self.btn_settings,
+            self.btn_statistics, self.btn_graphs, self.btn_exit
         ]
         
         for i, btn in enumerate(buttons):
             btn.setMinimumHeight(40)
             btn.setStyleSheet("font-weight: bold;")
-            row = i // 3
-            col = i % 3
+            row = i // 4
+            col = i % 4
             params_layout.addWidget(btn, row, col)
         
-        # Параметры - добавляем в строку 4 (после 4 рядов кнопок: 0, 1, 2, 3)
+        # Параметры - добавляем в строку 3 (после 3 рядов кнопок: 0, 1, 2)
         stats_layout = QHBoxLayout()
         
         self.lbl_particles = QLabel(f"Частиц: {self.config.particles.count}")
@@ -87,8 +87,8 @@ class MainWindow(QMainWindow):
             lbl.setStyleSheet(f"background-color: {label_bg_color}; color: {label_text_color}; padding: 5px; border-radius: 3px;")
             stats_layout.addWidget(lbl)
         
-        # Строка 4 - после кнопок в строках 0, 1, 2, 3
-        params_layout.addLayout(stats_layout, 4, 0, 1, 3)
+        # Строка 3 - после кнопок в строках 0, 1, 2
+        params_layout.addLayout(stats_layout, 3, 0, 1, 4)
         
         params_group.setLayout(params_layout)
         params_group.setStyleSheet(f"QGroupBox {{ color: {group_text_color}; font-weight: bold; }}")
@@ -188,6 +188,7 @@ class MainWindow(QMainWindow):
         self.btn_graphs.clicked.connect(self.show_graphs)
         self.btn_statistics.clicked.connect(self.show_statistics)
         self.btn_settings.clicked.connect(self.show_settings)
+        self.btn_exit.clicked.connect(self.close)
         
         # Обновление данных из симуляции
         self.simulation.update_signal.connect(self.update_display)
