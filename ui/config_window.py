@@ -344,6 +344,7 @@ class ConfigWindow(QDialog):
         """Создать таб с параметрами частиц."""
         sections = [
             ('particles', 'Параметры частиц'),
+            ('molecule', 'Структура молекулы'),
         ]
         tab = self._create_tab_with_scroll(sections)
         self.tab_widget.addTab(tab, "Частицы")

@@ -56,6 +56,8 @@ class SimulationWidget(QWidget):
         
         # Данные для графиков
         self.Energy_check = 0
+        self.Energy_translational = 0  # Поступательная энергия
+        self.Energy_rotational = 0  # Вращательная энергия
         self.Pressure = []
         self.Temperature = []
         self.Volume = []
@@ -170,16 +172,58 @@ class SimulationWidget(QWidget):
         
         # Рисуем частицы
         for particle in self.particles:
-            painter.setBrush(particle.color)
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(
-                int(particle.x - particle.radius),
-                int(particle.y - particle.radius),
-                particle.radius * 2,
-                particle.radius * 2
-            )
+            # Проверяем, нужно ли рисовать молекулярную структуру
+            if hasattr(particle, 'atom_count') and particle.atom_count > 1:
+                # Рисуем многоатомную молекулу
+                atom_positions = particle.get_atom_positions()
+                
+                # Рисуем связи между атомами
+                if len(atom_positions) > 1:
+                    painter.setPen(QPen(particle.color.darker(150), 2))
+                    for i in range(len(atom_positions) - 1):
+                        x1, y1, _ = atom_positions[i]
+                        x2, y2, _ = atom_positions[i + 1]
+                        painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+                    # Соединяем с центром для нелинейных молекул
+                    if particle.geometry == "nonlinear" and len(atom_positions) >= 3:
+                        cx, cy, _ = atom_positions[0]
+                        for ax, ay, _ in atom_positions[1:]:
+                            painter.drawLine(int(cx), int(cy), int(ax), int(ay))
+                
+                # Рисуем атомы
+                painter.setPen(Qt.NoPen)
+                for i, (ax, ay, ar) in enumerate(atom_positions):
+                    if i == 0:
+                        painter.setBrush(particle.color)
+                    else:
+                        painter.setBrush(particle.color.lighter(130))
+                    painter.drawEllipse(
+                        int(ax - ar),
+                        int(ay - ar),
+                        int(ar * 2),
+                        int(ar * 2)
+                    )
+            else:
+                # Рисуем одноатомную частицу
+                painter.setBrush(particle.color)
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(
+                    int(particle.x - particle.radius),
+                    int(particle.y - particle.radius),
+                    particle.radius * 2,
+                    particle.radius * 2
+                )
+                
+                # Рисуем линию-индикатор ориентации для молекул с вращением
+                if (hasattr(particle, 'rotation_enabled') and 
+                    particle.rotation_enabled and 
+                    particle.show_orientation and
+                    particle.molecule_type != "monatomic"):
+                    (x1, y1), (x2, y2) = particle.get_orientation_line()
+                    painter.setPen(QPen(QColor(255, 255, 255, 150), 1))
+                    painter.drawLine(int(x1), int(y1), int(x2), int(y2))
             
-            # Рисуем траекторию для первых 5 частиц
+            # Рисуем траекторию для первой частицы
             if particle == self.particles[0] and len(particle.trajectory) > 1:
                 painter.setPen(QPen(QColor(*trajectory_color), 1))
                 for i in range(len(particle.trajectory) - 1):
@@ -233,6 +277,10 @@ class SimulationWidget(QWidget):
             particle.x += particle.v * math.cos(particle.a)
             particle.y += particle.v * math.sin(particle.a)
             particle.trajectory.append((particle.x, particle.y))
+            
+            # Обновляем вращение молекулы (если включено)
+            if hasattr(particle, 'update_rotation'):
+                particle.update_rotation(self.time_sleep)
         
         # Сохраняем траекторию броуновской частицы
         if self.particles:
@@ -311,9 +359,13 @@ class SimulationWidget(QWidget):
                             tangential_velocity1 = p1.v * math.sin(velocity_angle1)
                             tangential_velocity2 = p2.v * math.sin(velocity_angle2)
                             
-                            # Обмен нормальными компонентами
-                            normal_velocity1_new = (2 * p1.mass * p2.v * math.cos(velocity_angle2)) / (2 * p1.mass)
-                            normal_velocity2_new = (2 * p1.mass * p1.v * math.cos(velocity_angle1)) / (2 * p1.mass)
+                            # Обмен нормальными компонентами (упругое столкновение)
+                            m1, m2 = p1.mass, p2.mass
+                            total_mass = m1 + m2
+                            
+                            # Формулы для упругого столкновения с разными массами
+                            normal_velocity1_new = ((m1 - m2) * normal_velocity1 + 2 * m2 * normal_velocity2) / total_mass
+                            normal_velocity2_new = ((m2 - m1) * normal_velocity2 + 2 * m1 * normal_velocity1) / total_mass
                             
                             # Новые скорости
                             p1.v = math.sqrt(normal_velocity1_new**2 + tangential_velocity1**2)
@@ -325,6 +377,27 @@ class SimulationWidget(QWidget):
                             
                             p1.a = collision_angle + new_angle1
                             p2.a = collision_angle + new_angle2
+                            
+                            # Обмен угловым моментом для молекул с вращением
+                            # При столкновении часть кинетической энергии может перейти во вращение
+                            if (hasattr(p1, 'rotation_enabled') and p1.rotation_enabled and 
+                                p1.molecule_type != "monatomic"):
+                                # Передача углового момента от касательной скорости
+                                # Момент силы: τ = r × F, где r - точка контакта
+                                # Упрощённая модель: часть касательного импульса передаётся во вращение
+                                impact_arm = p1.radius  # Плечо силы
+                                delta_tangent1 = tangential_velocity1 - tangential_velocity1  # Изменение касательной скорости
+                                if p1.I > 0:
+                                    # Случайный обмен угловой скоростью при столкновении
+                                    omega_transfer = 0.3 * tangential_velocity1 / (p1.I * impact_arm) if impact_arm > 0 else 0
+                                    p1.omega += random.uniform(-abs(omega_transfer), abs(omega_transfer))
+                            
+                            if (hasattr(p2, 'rotation_enabled') and p2.rotation_enabled and 
+                                p2.molecule_type != "monatomic"):
+                                impact_arm = p2.radius
+                                if p2.I > 0:
+                                    omega_transfer = 0.3 * tangential_velocity2 / (p2.I * impact_arm) if impact_arm > 0 else 0
+                                    p2.omega += random.uniform(-abs(omega_transfer), abs(omega_transfer))
                             
                             # Нормализация углов
                             while p1.a > math.pi:
@@ -357,12 +430,27 @@ class SimulationWidget(QWidget):
                     if particle.v - self.config.state_change.freeze_rate > 0:
                         particle.v -= self.config.state_change.freeze_rate
         
-        # Расчет энергии системы
+        # Расчет энергии системы (поступательная + вращательная)
         self.Energy_check = 0
+        self.Energy_translational = 0
+        self.Energy_rotational = 0
         velocities = []
+        angular_velocities = []
+        
         for particle in self.particles:
-            self.Energy_check += particle.mass * (particle.v**2) / 2
+            # Поступательная энергия
+            e_trans = particle.mass * (particle.v**2) / 2
+            self.Energy_translational += e_trans
             velocities.append(particle.v)
+            
+            # Вращательная энергия (если есть)
+            if hasattr(particle, 'rotational_energy'):
+                e_rot = particle.rotational_energy()
+                self.Energy_rotational += e_rot
+                if hasattr(particle, 'omega'):
+                    angular_velocities.append(particle.omega)
+        
+        self.Energy_check = self.Energy_translational + self.Energy_rotational
         
         # Логирование и обновление графиков
         self.counter += 1
@@ -472,7 +560,19 @@ class SimulationWidget(QWidget):
                 'initial_velocities': self.initial_velocities,
                 'initial_positions': self.initial_positions_saved,
                 'correlations_history': self.correlations_history,
-                'particle_velocity_histories': self.particle_velocity_histories
+                'particle_velocity_histories': self.particle_velocity_histories,
+                # Данные для молекулярной структуры (вращательные степени свободы)
+                'molecule_config': {
+                    'molecule_type': getattr(self.config.molecule, 'molecule_type', 'monatomic'),
+                    'geometry': getattr(self.config.molecule, 'geometry', 'linear'),
+                    'enable_rotation': getattr(self.config.molecule, 'enable_rotation', False),
+                    'moment_of_inertia': getattr(self.config.molecule, 'moment_of_inertia', 1.0),
+                    'degrees_of_freedom': self.config.molecule.get_degrees_of_freedom() if hasattr(self.config, 'molecule') else 2
+                },
+                'angular_velocities': angular_velocities,
+                'energy_translational': self.Energy_translational,
+                'energy_rotational': self.Energy_rotational,
+                'energy_total': self.Energy_check
             }
             self.data_updated.emit(data_dict)
             
@@ -498,9 +598,10 @@ class SimulationWidget(QWidget):
         self.mode = mode
     
     def _calculate_and_save_initial_energy(self):
-        """Расчёт и сохранение начальной энергии системы."""
+        """Расчёт и сохранение начальной энергии системы (поступательная + вращательная)."""
         self.initial_energy = sum(
-            particle.mass * (particle.v ** 2) / 2 
+            particle.total_energy() if hasattr(particle, 'total_energy') 
+            else particle.mass * (particle.v ** 2) / 2 
             for particle in self.particles
         )
     
@@ -654,6 +755,8 @@ class SimulationWidget(QWidget):
         self.SpatialEntropy = []
         self.collision_count = 0
         self.initial_energy = None
+        self.Energy_translational = 0
+        self.Energy_rotational = 0
         # Сброс данных эргодичности
         self.particle_velocity_histories = {}
         self.time_averages_history = []

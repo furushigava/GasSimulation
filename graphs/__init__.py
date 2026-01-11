@@ -13,6 +13,7 @@ from .brownian import update_brownian_graphs
 from .boltzmann import update_boltzmann_graphs
 from .entropy import update_entropy_graphs
 from .ergodic import update_ergodic_graphs
+from .rotational import update_rotational_graphs
 
 __all__ = [
     'GraphWindow',
@@ -26,5 +27,6 @@ __all__ = [
     'update_brownian_graphs',
     'update_boltzmann_graphs',
     'update_entropy_graphs',
-    'update_ergodic_graphs'
+    'update_ergodic_graphs',
+    'update_rotational_graphs'
 ]

@@ -11,7 +11,7 @@ from typing import Optional
 
 from .base import ConfigSection, save_config_to_file, load_config_from_file
 from .simulation import SimulationWindowConfig, TimeConfig, StateChangeConfig, CollisionConfig
-from .particles import ParticlesConfig
+from .particles import ParticlesConfig, MoleculeConfig
 from .physics import GravityConfig, BrownianConfig, ExperimentConfig
 from .ui import MainWindowConfig, GraphWindowConfig, LoggingConfig
 from .graphs import (
@@ -72,6 +72,12 @@ class AppConfig(ConfigSection):
     particles: ParticlesConfig = Field(
         default_factory=ParticlesConfig,
         title="Частицы"
+    )
+    
+    # Молекулярная структура
+    molecule: MoleculeConfig = Field(
+        default_factory=MoleculeConfig,
+        title="Структура молекулы"
     )
     
     # UI
@@ -165,6 +171,7 @@ __all__ = [
     'BrownianConfig',
     'ExperimentConfig',
     'ParticlesConfig',
+    'MoleculeConfig',
     'MainWindowConfig',
     'GraphWindowConfig',
     'LoggingConfig',

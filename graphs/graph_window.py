@@ -21,6 +21,7 @@ from .brownian import update_brownian_graphs
 from .boltzmann import update_boltzmann_graphs
 from .entropy import update_entropy_graphs
 from .ergodic import update_ergodic_graphs
+from .rotational import update_rotational_graphs
 
 
 class GraphWindow(QDialog):
@@ -71,6 +72,7 @@ class GraphWindow(QDialog):
         self.create_boltzmann_tab()
         self.create_entropy_tab()
         self.create_ergodic_tab()
+        self.create_rotational_tab()
         
         layout = QVBoxLayout()
         layout.addWidget(self.tab_widget)
@@ -266,6 +268,21 @@ class GraphWindow(QDialog):
         tab.setLayout(layout)
         self.tab_widget.addTab(tab, "Эргодичность")
     
+    def create_rotational_tab(self):
+        """Вкладка с графиками вращательных степеней свободы (молекулярная структура)"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+        
+        self.figure_rotational = Figure(figsize=self.figure_size)
+        self.canvas_rotational = FigureCanvas(self.figure_rotational)
+        self.toolbar_rotational = NavigationToolbar(self.canvas_rotational, self)
+        
+        layout.addWidget(self.toolbar_rotational)
+        layout.addWidget(self.canvas_rotational)
+        
+        tab.setLayout(layout)
+        self.tab_widget.addTab(tab, "Вращение")
+    
     def init_graphs(self):
         """Инициализация всех графиков"""
         self.update_current_tab({})
@@ -307,6 +324,9 @@ class GraphWindow(QDialog):
                 update_entropy_graphs(self.figure_entropy, self.canvas_entropy, data)
             elif current_index == 10:
                 update_ergodic_graphs(self.figure_ergodic, self.canvas_ergodic, data)
+            elif current_index == 11:
+                update_rotational_graphs(self.figure_rotational, data)
+                self.canvas_rotational.draw()
         except Exception as e:
             print(f"Ошибка при обновлении графиков: {e}")
     
@@ -329,6 +349,8 @@ class GraphWindow(QDialog):
             update_boltzmann_graphs(self.figure_boltzmann, self.canvas_boltzmann, data)
             update_entropy_graphs(self.figure_entropy, self.canvas_entropy, data)
             update_ergodic_graphs(self.figure_ergodic, self.canvas_ergodic, data)
+            update_rotational_graphs(self.figure_rotational, data)
+            self.canvas_rotational.draw()
         except Exception as e:
             print(f"Ошибка при обновлении графиков: {e}")
     
@@ -352,7 +374,8 @@ class GraphWindow(QDialog):
             (self.figure_brownian, "brownian"),
             (self.figure_boltzmann, "boltzmann"),
             (self.figure_entropy, "entropy"),
-            (self.figure_ergodic, "ergodic")
+            (self.figure_ergodic, "ergodic"),
+            (self.figure_rotational, "rotational")
         ]
         
         for fig, name in figures:
