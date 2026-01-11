@@ -15,7 +15,7 @@ class GravityConfig(ConfigSection):
         description="Включить внешнее гравитационное поле (направлено вниз)"
     )
     g: float = Field(
-        default=0.1,
+        default=9.8,
         ge=0.0,
         le=10.0,
         title="Ускорение свободного падения",
