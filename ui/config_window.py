@@ -299,6 +299,24 @@ class ConfigWindow(QDialog):
         self.setMinimumSize(600, 700)
         self.resize(700, 800)
         
+        # Стиль для чекбоксов, чтобы были видны на тёмном фоне
+        self.setStyleSheet("""
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border: 2px solid #888;
+                border-radius: 3px;
+                background-color: #2d2d2d;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #4CAF50;
+                border-color: #4CAF50;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #aaa;
+            }
+        """)
+        
         layout = QVBoxLayout(self)
         
         # Табы для категорий
@@ -315,29 +333,35 @@ class ConfigWindow(QDialog):
         
         # Кнопки
         buttons_layout = QHBoxLayout()
+        button_height = 50
         
-        self.reset_defaults_btn = QPushButton("Сбросить к дефолтным")
+        self.reset_defaults_btn = QPushButton("Сбросить\nк дефолтным")
+        self.reset_defaults_btn.setFixedHeight(button_height)
         self.reset_defaults_btn.setToolTip("Сбросить все параметры к значениям по умолчанию")
         buttons_layout.addWidget(self.reset_defaults_btn)
         
         buttons_layout.addStretch()
         
-        self.load_btn = QPushButton("Загрузить из файла...")
+        self.load_btn = QPushButton("Загрузить\nиз файла...")
+        self.load_btn.setFixedHeight(button_height)
         self.load_btn.setToolTip("Загрузить конфигурацию из JSON файла")
         buttons_layout.addWidget(self.load_btn)
         
-        self.save_btn = QPushButton("Сохранить в файл...")
+        self.save_btn = QPushButton("Сохранить\nв файл...")
+        self.save_btn.setFixedHeight(button_height)
         self.save_btn.setToolTip("Сохранить конфигурацию в JSON файл")
         buttons_layout.addWidget(self.save_btn)
         
         buttons_layout.addStretch()
         
-        self.apply_btn = QPushButton("Применить и перезапустить")
+        self.apply_btn = QPushButton("Применить\nи перезапустить")
+        self.apply_btn.setFixedHeight(button_height)
         self.apply_btn.setStyleSheet("background-color: #2d5a2d; font-weight: bold;")
         self.apply_btn.setToolTip("Применить изменения и перезапустить симуляцию")
         buttons_layout.addWidget(self.apply_btn)
         
         self.cancel_btn = QPushButton("Отмена")
+        self.cancel_btn.setFixedHeight(button_height)
         buttons_layout.addWidget(self.cancel_btn)
         
         layout.addLayout(buttons_layout)
