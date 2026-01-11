@@ -103,6 +103,7 @@ class ConfigSectionWidget(QWidget):
         self.widgets: Dict[str, Any] = {}
         
         self._setup_ui()
+        self._setup_preset_handling()
     
     def _setup_ui(self):
         layout = QFormLayout(self)
@@ -117,6 +118,26 @@ class ConfigSectionWidget(QWidget):
                 label.setToolTip(info['description'])
                 layout.addRow(label, widget)
                 self.widgets[field_name] = widget
+    
+    def _setup_preset_handling(self):
+        """Настроить обработку пресетов для секции molecule."""
+        if self.section_name == 'molecule' and 'preset' in self.widgets:
+            preset_widget = self.widgets['preset']
+            if isinstance(preset_widget, QComboBox):
+                preset_widget.currentTextChanged.connect(self._on_preset_changed)
+    
+    def _on_preset_changed(self, preset_value: str):
+        """Обработчик изменения пресета молекулы."""
+        if preset_value == 'custom':
+            return  # Не применяем пресет для custom
+        
+        # Применяем пресет к секции
+        if hasattr(self.section, 'preset'):
+            self.section.preset = preset_value
+        if hasattr(self.section, 'apply_preset'):
+            self.section.apply_preset()
+            # Обновляем виджеты из обновлённой секции
+            self._update_widgets_from_section()
     
     def _create_widget_for_field(self, field_name: str, info: Dict) -> Any:
         """Создать виджет для поля на основе его типа."""
@@ -183,6 +204,37 @@ class ConfigSectionWidget(QWidget):
         # Fallback: строка
         widget = QLineEdit(str(current_value))
         return widget
+    
+    def _update_widgets_from_section(self):
+        """Обновить виджеты из текущей секции (после apply_preset)."""
+        for field_name, widget in self.widgets.items():
+            if field_name == 'preset':
+                continue  # Не обновляем сам пресет
+            value = getattr(self.section, field_name)
+            if isinstance(widget, QSpinBox):
+                widget.blockSignals(True)
+                widget.setValue(value)
+                widget.blockSignals(False)
+            elif isinstance(widget, QDoubleSpinBox):
+                widget.blockSignals(True)
+                widget.setValue(value)
+                widget.blockSignals(False)
+            elif isinstance(widget, QLineEdit):
+                widget.blockSignals(True)
+                widget.setText(str(value))
+                widget.blockSignals(False)
+            elif isinstance(widget, ColorButton):
+                widget.set_color(value)
+            elif isinstance(widget, QCheckBox):
+                widget.blockSignals(True)
+                widget.setChecked(value)
+                widget.blockSignals(False)
+            elif isinstance(widget, QComboBox):
+                widget.blockSignals(True)
+                widget.setCurrentText(str(value))
+                widget.blockSignals(False)
+            elif isinstance(widget, HexColorEdit):
+                widget.set_value(value)
     
     def get_values(self) -> Dict[str, Any]:
         """Получить все значения из виджетов."""
