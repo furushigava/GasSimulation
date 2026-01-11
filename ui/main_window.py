@@ -179,8 +179,11 @@ class MainWindow(QMainWindow):
     
     def show_graphs(self):
         """Показать окно с графиками"""
-        if self.graph_window is None or not self.graph_window.isVisible():
-            self.graph_window = GraphWindow(self.simulation, self)
+        # Всегда создаем новое окно, чтобы переподключить сигнал
+        if self.graph_window is not None:
+            self.graph_window.close()
+            self.graph_window = None
+        self.graph_window = GraphWindow(self.simulation, self)
         self.graph_window.show()
         self.graph_window.raise_()
     

@@ -29,8 +29,12 @@ class GraphWindow(QDialog):
         self.setWindowTitle("Графики симуляции газа")
         self.setGeometry(100, 100, GRAPH_WINDOW_WIDTH, GRAPH_WINDOW_HEIGHT)
         
+        # Флаг для отслеживания подключения сигнала
+        self._connected = False
+        
         # Подключение сигнала обновления данных
         self.simulation.data_updated.connect(self.on_data_updated)
+        self._connected = True
         
         # Счетчик для регулировки частоты обновления графиков
         self.update_counter = 0
@@ -289,3 +293,13 @@ class GraphWindow(QDialog):
                 pdf.savefig(fig, bbox_inches='tight')
         
         print(f"Все графики сохранены в PDF: {pdf_filename}")
+
+    def closeEvent(self, event):
+        """Обработка закрытия окна - отключаем сигнал для предотвращения лагов"""
+        if self._connected:
+            try:
+                self.simulation.data_updated.disconnect(self.on_data_updated)
+                self._connected = False
+            except (TypeError, RuntimeError):
+                pass  # Сигнал уже отключен или объект удален
+        event.accept()
