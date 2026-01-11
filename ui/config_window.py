@@ -6,12 +6,12 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget,
     QFormLayout, QSpinBox, QDoubleSpinBox, QLineEdit, QPushButton,
     QLabel, QGroupBox, QScrollArea, QColorDialog, QMessageBox,
-    QFileDialog, QFrame
+    QFileDialog, QFrame, QCheckBox, QComboBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QPalette
 from pydantic import ValidationError
-from typing import Any, Dict, Tuple, get_origin, get_args
+from typing import Any, Dict, Tuple, get_origin, get_args, Literal
 from pathlib import Path
 
 from schemas import AppConfig, ConfigSection
@@ -132,6 +132,22 @@ class ConfigSectionWidget(QWidget):
                 widget = ColorButton(current_value)
                 return widget
         
+        # Обработка Literal (выпадающий список)
+        if origin is Literal:
+            args = get_args(field_type)
+            widget = QComboBox()
+            widget.addItems([str(arg) for arg in args])
+            widget.setCurrentText(str(current_value))
+            widget.setToolTip(info['description'])
+            return widget
+        
+        # bool (чекбокс)
+        if field_type == bool:
+            widget = QCheckBox()
+            widget.setChecked(current_value)
+            widget.setToolTip(info['description'])
+            return widget
+        
         # int
         if field_type == int:
             widget = QSpinBox()
@@ -182,6 +198,10 @@ class ConfigSectionWidget(QWidget):
                 values[field_name] = widget.get_color()
             elif isinstance(widget, HexColorEdit):
                 values[field_name] = widget.get_value()
+            elif isinstance(widget, QCheckBox):
+                values[field_name] = widget.isChecked()
+            elif isinstance(widget, QComboBox):
+                values[field_name] = widget.currentText()
         return values
     
     def set_values(self, section: ConfigSection):
@@ -197,6 +217,10 @@ class ConfigSectionWidget(QWidget):
                 widget.setText(str(value))
             elif isinstance(widget, ColorButton):
                 widget.set_color(value)
+            elif isinstance(widget, QCheckBox):
+                widget.setChecked(value)
+            elif isinstance(widget, QComboBox):
+                widget.setCurrentText(str(value))
             elif isinstance(widget, HexColorEdit):
                 widget.set_value(value)
 
@@ -231,6 +255,7 @@ class ConfigWindow(QDialog):
         
         # Создаем табы по категориям
         self._create_simulation_tab()
+        self._create_physics_tab()
         self._create_particles_tab()
         self._create_ui_tab()
         self._create_graphs_tab()
@@ -304,6 +329,16 @@ class ConfigWindow(QDialog):
         ]
         tab = self._create_tab_with_scroll(sections)
         self.tab_widget.addTab(tab, "Симуляция")
+    
+    def _create_physics_tab(self):
+        """Создать таб с физическими параметрами."""
+        sections = [
+            ('gravity', 'Гравитация'),
+            ('brownian', 'Броуновское движение'),
+            ('experiment', 'Экспериментальные режимы'),
+        ]
+        tab = self._create_tab_with_scroll(sections)
+        self.tab_widget.addTab(tab, "Физика")
     
     def _create_particles_tab(self):
         """Создать таб с параметрами частиц."""

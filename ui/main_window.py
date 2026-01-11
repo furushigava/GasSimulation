@@ -59,11 +59,29 @@ class MainWindow(QMainWindow):
         self.btn_settings = QPushButton("Настройки")
         self.btn_exit = QPushButton("Выход")
         
+        # Кнопки экспериментальных режимов
+        self.btn_isolated = QPushButton("Изолированная система")
+        self.btn_isolated.setCheckable(True)
+        self.btn_isolated.setChecked(self.config.experiment.isolated_system)
+        
+        self.btn_brownian = QPushButton("Броуновское движение")
+        self.btn_brownian.setCheckable(True)
+        self.btn_brownian.setChecked(self.config.brownian.enabled)
+        
+        self.btn_gravity = QPushButton("Гравитация")
+        self.btn_gravity.setCheckable(True)
+        self.btn_gravity.setChecked(self.config.gravity.enabled)
+        
+        self.btn_corner_start = QPushButton("Старт из угла")
+        self.btn_corner_start.setCheckable(True)
+        self.btn_corner_start.setChecked(self.config.experiment.corner_start)
+        
         # Настройка кнопок - размещаем по 4 кнопки в ряд
         buttons = [
             self.btn_heat, self.btn_freeze, self.btn_expansion, self.btn_compression,
             self.btn_off, self.btn_stop, self.btn_start, self.btn_reset,
-            self.btn_statistics, self.btn_graphs, self.btn_settings, self.btn_exit
+            self.btn_statistics, self.btn_graphs, self.btn_settings, self.btn_exit,
+            self.btn_isolated, self.btn_brownian, self.btn_gravity, self.btn_corner_start
         ]
         
         for i, btn in enumerate(buttons):
@@ -73,7 +91,7 @@ class MainWindow(QMainWindow):
             col = i % 4
             params_layout.addWidget(btn, row, col)
         
-        # Параметры - добавляем в строку 3 (после 3 рядов кнопок: 0, 1, 2)
+        # Параметры - добавляем в строку 4 (после 4 рядов кнопок: 0, 1, 2, 3)
         stats_layout = QHBoxLayout()
         
         self.lbl_particles = QLabel(f"Частиц: {self.config.particles.count}")
@@ -88,8 +106,8 @@ class MainWindow(QMainWindow):
             lbl.setStyleSheet(f"background-color: {label_bg_color}; color: {label_text_color}; padding: 5px; border-radius: 3px;")
             stats_layout.addWidget(lbl)
         
-        # Строка 3 - после кнопок в строках 0, 1, 2
-        params_layout.addLayout(stats_layout, 3, 0, 1, 4)
+        # Строка 4 - после кнопок в строках 0, 1, 2, 3
+        params_layout.addLayout(stats_layout, 4, 0, 1, 4)
         
         params_group.setLayout(params_layout)
         params_group.setStyleSheet(f"QGroupBox {{ color: {group_text_color}; font-weight: bold; }}")
@@ -192,6 +210,12 @@ class MainWindow(QMainWindow):
         self.btn_settings.clicked.connect(self.show_settings)
         self.btn_exit.clicked.connect(self.close)
         
+        # Экспериментальные режимы
+        self.btn_isolated.clicked.connect(self.toggle_isolated_system)
+        self.btn_brownian.clicked.connect(self.toggle_brownian_mode)
+        self.btn_gravity.clicked.connect(self.toggle_gravity)
+        self.btn_corner_start.clicked.connect(self.toggle_corner_start)
+        
         # Обновление данных из симуляции
         self.simulation.update_signal.connect(self.update_display)
     
@@ -219,6 +243,71 @@ class MainWindow(QMainWindow):
         mode_colors = self.config.mode_colors.to_dict_by_mode()
         color = mode_colors.get(self.simulation.mode, '#f0f0f0')
         self.lbl_mode.setStyleSheet(f"background-color: {color}; padding: 5px; border-radius: 3px;")
+        
+        # Обновляем стиль кнопки изолированной системы
+        if self.btn_isolated.isChecked():
+            self.btn_isolated.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        else:
+            self.btn_isolated.setStyleSheet("font-weight: bold;")
+    
+    def toggle_isolated_system(self, checked: bool):
+        """Переключить режим изолированной системы."""
+        self.simulation.toggle_isolated_system(checked)
+        self.config.experiment.isolated_system = checked
+        
+        # Обновляем визуальное состояние кнопки
+        if checked:
+            self.btn_isolated.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+            self.log_display.append("🔒 Режим изолированной системы ВКЛЮЧЕН")
+            self.log_display.append("   → Нагрев/охлаждение и расширение/сжатие заблокированы")
+        else:
+            self.btn_isolated.setStyleSheet("font-weight: bold;")
+            self.log_display.append("🔓 Режим изолированной системы ВЫКЛЮЧЕН")
+    
+    def toggle_brownian_mode(self, checked: bool):
+        """Переключить режим броуновского движения."""
+        self.simulation.toggle_brownian_mode(checked)
+        self.config.brownian.enabled = checked
+        
+        # Обновляем визуальное состояние кнопки
+        if checked:
+            self.btn_brownian.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold;")
+            self.log_display.append("🔬 Режим броуновского движения ВКЛЮЧЕН")
+            self.log_display.append("   → Первая частица увеличена (масса и радиус)")
+            self.log_display.append("   → Отслеживание MSD активно")
+        else:
+            self.btn_brownian.setStyleSheet("font-weight: bold;")
+            self.log_display.append("🔬 Режим броуновского движения ВЫКЛЮЧЕН")
+    
+    def toggle_gravity(self, checked: bool):
+        """Переключить гравитацию."""
+        self.simulation.toggle_gravity(checked)
+        self.config.gravity.enabled = checked
+        
+        # Обновляем визуальное состояние кнопки
+        if checked:
+            self.btn_gravity.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+            self.log_display.append("🌍 Гравитация ВКЛЮЧЕНА")
+            self.log_display.append(f"   → g = {self.config.gravity.g}")
+            self.log_display.append("   → Частицы будут падать вниз")
+        else:
+            self.btn_gravity.setStyleSheet("font-weight: bold;")
+            self.log_display.append("🌍 Гравитация ВЫКЛЮЧЕНА")
+    
+    def toggle_corner_start(self, checked: bool):
+        """Переключить режим старта из угла."""
+        self.simulation.toggle_corner_start(checked)
+        self.config.experiment.corner_start = checked
+        
+        # Обновляем визуальное состояние кнопки
+        if checked:
+            self.btn_corner_start.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold;")
+            self.log_display.append("📐 Режим СТАРТ ИЗ УГЛА ВКЛЮЧЕН")
+            self.log_display.append("   → Частицы начинают в левом верхнем углу")
+            self.log_display.append("   → Для демонстрации 2-го закона термодинамики")
+        else:
+            self.btn_corner_start.setStyleSheet("font-weight: bold;")
+            self.log_display.append("📐 Режим старт из угла ВЫКЛЮЧЕН")
     
     def show_graphs(self):
         """Показать окно с графиками"""

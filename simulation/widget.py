@@ -72,6 +72,26 @@ class SimulationWidget(QWidget):
         
         self.log_buffer = deque(maxlen=self.config.logging.buffer_size)
         
+        # Данные для физических законов
+        self.initial_energy = None  # Начальная энергия для 1-го закона
+        self.Entropy = []  # Энтропия для 2-го закона
+        self.positions_history = []  # История позиций для броуновского движения
+        self.MSD = []  # Среднеквадратичное смещение
+        self.brownian_trajectory = []  # Траектория броуновской частицы
+        self.brownian_initial_pos = None  # Начальная позиция броуновской частицы
+        self.time_averages = {}  # Временные средние для эргодической гипотезы
+        self.ensemble_averages = {}  # Ансамблевые средние
+        self.H_function = []  # H-функция Больцмана
+        self.SpatialEntropy = []  # Пространственная энтропия
+        
+        # Данные для эргодической гипотезы
+        self.particle_velocity_histories = {}  # История скоростей каждой частицы
+        self.time_averages_history = []  # История временных средних (1-я частица)
+        self.ensemble_averages_history = []  # История ансамблевых средних
+        self.initial_velocities = []  # Начальные скорости для "забывания"
+        self.initial_positions_saved = []  # Начальные позиции
+        self.correlations_history = []  # История корреляций с начальным состоянием
+        
         self.init_particles()
         
         # Таймер для обновления симуляции
@@ -85,13 +105,50 @@ class SimulationWidget(QWidget):
         """Инициализация частиц"""
         self.particles = []
         first_particle_color = self.config.particle_colors.first_particle_color
+        
+        # Проверяем режим старта из угла (для демонстрации 2-го закона)
+        corner_start = getattr(self.config.experiment, 'corner_start', False)
+        
         for i in range(self.nn):
-            x = random.uniform(self.r1, self.width - self.r1)
-            y = random.uniform(self.r1, self.height - self.r1)
+            if corner_start:
+                # Все частицы в левом верхнем углу
+                max_corner = min(self.width, self.height) * 0.3
+                x = random.uniform(self.r1, max_corner - self.r1)
+                y = random.uniform(self.r1, max_corner - self.r1)
+            else:
+                x = random.uniform(self.r1, self.width - self.r1)
+                y = random.uniform(self.r1, self.height - self.r1)
+            
             particle = GasParticle(x, y, self.r1, self.m1, self.v_start, self.config)
             if i == 0:
                 particle.color = QColor(*first_particle_color)  # Первая частица зеленая
+                
+                # Если включен режим броуновского движения и режим single_large
+                if (hasattr(self.config, 'brownian') and 
+                    self.config.brownian.enabled and 
+                    self.config.brownian.mode == "single_large"):
+                    # Делаем первую частицу большой и тяжёлой
+                    particle.radius = int(self.r1 * self.config.brownian.large_radius_multiplier)
+                    particle.mass = self.m1 * self.config.brownian.large_mass_multiplier
+                    particle.v = self.v_start / 2  # Медленнее из-за массы
+                    
             self.particles.append(particle)
+        
+        # Сохраняем начальную позицию броуновской частицы
+        if self.particles:
+            self.brownian_initial_pos = (self.particles[0].x, self.particles[0].y)
+            self.brownian_trajectory = [(self.particles[0].x, self.particles[0].y)]
+        
+        # Сохраняем начальные скорости и позиции для эргодической гипотезы
+        self.initial_velocities = [p.v for p in self.particles]
+        self.initial_positions_saved = [(p.x, p.y) for p in self.particles]
+        self.particle_velocity_histories = {i: [] for i in range(len(self.particles))}
+        self.time_averages_history = []
+        self.ensemble_averages_history = []
+        self.correlations_history = []
+        
+        # Сохраняем начальную энергию для проверки 1-го закона
+        self._calculate_and_save_initial_energy()
     
     def paintEvent(self, event):
         """Отрисовка частиц и стенок"""
@@ -163,9 +220,30 @@ class SimulationWidget(QWidget):
         
         # Обновление позиций частиц
         for particle in self.particles:
+            # Обновляем скорость под действием гравитации (если включена)
+            if hasattr(self.config, 'gravity') and self.config.gravity.enabled:
+                g = self.config.gravity.g
+                # Гравитация направлена вниз (увеличивает y в системе координат экрана)
+                # v_y += g * dt
+                vy = particle.v * math.sin(particle.a) + g * self.time_sleep
+                vx = particle.v * math.cos(particle.a)
+                particle.v = math.sqrt(vx**2 + vy**2)
+                particle.a = math.atan2(vy, vx)
+            
             particle.x += particle.v * math.cos(particle.a)
             particle.y += particle.v * math.sin(particle.a)
             particle.trajectory.append((particle.x, particle.y))
+        
+        # Сохраняем траекторию броуновской частицы
+        if self.particles:
+            self.brownian_trajectory.append((self.particles[0].x, self.particles[0].y))
+            
+            # Расчёт MSD
+            if self.brownian_initial_pos is not None:
+                x0, y0 = self.brownian_initial_pos
+                x, y = self.particles[0].x, self.particles[0].y
+                msd = (x - x0)**2 + (y - y0)**2
+                self.MSD.append(msd)
         
         # Проверка столкновений со стенками
         for particle in self.particles:
@@ -260,20 +338,24 @@ class SimulationWidget(QWidget):
         
         self.collision_count += collisions_this_frame
         
-        # Изменение объема
-        if self.mode == "expansion":
-            self.width += self.config.state_change.expansion_rate
-        elif self.mode == "compression":
-            self.width -= self.config.state_change.compression_rate
+        # Проверяем изолированность системы
+        is_isolated = getattr(self.config.experiment, 'isolated_system', False)
         
-        # Изменение температуры
-        if self.mode == "heat":
-            for particle in self.particles:
-                particle.v += self.config.state_change.heat_rate
-        elif self.mode == "freeze" and self.counter >= self.config.state_change.freeze_min_counter:
-            for particle in self.particles:
-                if particle.v - self.config.state_change.freeze_rate > 0:
-                    particle.v -= self.config.state_change.freeze_rate
+        # Изменение объема (только если система не изолирована)
+        if not is_isolated:
+            if self.mode == "expansion":
+                self.width += self.config.state_change.expansion_rate
+            elif self.mode == "compression":
+                self.width -= self.config.state_change.compression_rate
+            
+            # Изменение температуры
+            if self.mode == "heat":
+                for particle in self.particles:
+                    particle.v += self.config.state_change.heat_rate
+            elif self.mode == "freeze" and self.counter >= self.config.state_change.freeze_min_counter:
+                for particle in self.particles:
+                    if particle.v - self.config.state_change.freeze_rate > 0:
+                        particle.v -= self.config.state_change.freeze_rate
         
         # Расчет энергии системы
         self.Energy_check = 0
@@ -320,7 +402,28 @@ class SimulationWidget(QWidget):
             self.MeanFreePath.append(mean_free_path)
             self.CollisionRate.append(collision_rate)
             
+            # Позиции частиц для распределения Больцмана и энтропии
+            positions = [(p.x, p.y) for p in self.particles]
+            
+            # Расчёт энтропии для 2-го закона
+            velocity_entropy = self._calculate_velocity_entropy(velocities)
+            if velocity_entropy is not None:
+                self.Entropy.append(velocity_entropy)
+            
+            h_func = self._calculate_h_function(velocities)
+            if h_func is not None:
+                self.H_function.append(h_func)
+            
+            spatial_entropy = self._calculate_spatial_entropy(positions)
+            if spatial_entropy is not None:
+                self.SpatialEntropy.append(spatial_entropy)
+            
+            # Расчёт данных для эргодической гипотезы
+            self._update_ergodic_data(velocities)
+            
             # Отправка данных в окно графиков
+            is_isolated = getattr(self.config.experiment, 'isolated_system', False)
+            
             data_dict = {
                 'time': self.Time_meas,
                 'pressure': self.Pressure,
@@ -333,7 +436,43 @@ class SimulationWidget(QWidget):
                 'mean_free_path': self.MeanFreePath,
                 'collision_rate': self.CollisionRate,
                 'mode': self.mode,
-                'collision_count': self.collision_count
+                'collision_count': self.collision_count,
+                # Новые данные для физических законов
+                'initial_energy': self.initial_energy,
+                'isolated_system': is_isolated,
+                'positions': positions,
+                'entropy': self.Entropy,
+                'msd': self.MSD,
+                'particle_mass': self.m1,
+                # Данные для броуновского движения
+                'brownian_trajectory': self.brownian_trajectory,
+                'brownian_config': {
+                    'enabled': getattr(self.config.brownian, 'enabled', False),
+                    'mode': getattr(self.config.brownian, 'mode', 'single_large'),
+                    'large_radius': int(self.r1 * getattr(self.config.brownian, 'large_radius_multiplier', 3.0)),
+                    'large_mass': self.m1 * getattr(self.config.brownian, 'large_mass_multiplier', 10.0)
+                },
+                'particle_radius': self.r1,
+                'time_step': self.time_check,
+                # Данные для распределения Больцмана
+                'gravity_config': {
+                    'enabled': getattr(self.config.gravity, 'enabled', False),
+                    'g': getattr(self.config.gravity, 'g', 0.1)
+                },
+                'container_height': self.height,
+                'container_width': self.width,
+                # Данные для энтропии (2-й закон)
+                'h_function': self.H_function,
+                'spatial_entropy': self.SpatialEntropy,
+                'corner_start': getattr(self.config.experiment, 'corner_start', False),
+                'n_particles': self.nn,
+                # Данные для эргодической гипотезы
+                'time_averages_history': self.time_averages_history,
+                'ensemble_averages_history': self.ensemble_averages_history,
+                'initial_velocities': self.initial_velocities,
+                'initial_positions': self.initial_positions_saved,
+                'correlations_history': self.correlations_history,
+                'particle_velocity_histories': self.particle_velocity_histories
             }
             self.data_updated.emit(data_dict)
             
@@ -349,7 +488,131 @@ class SimulationWidget(QWidget):
     
     def set_mode(self, mode):
         """Установка режима работы"""
+        # Проверяем изолированность системы
+        is_isolated = getattr(self.config.experiment, 'isolated_system', False)
+        
+        if is_isolated and mode in ["heat", "freeze", "expansion", "compression"]:
+            # В изолированной системе нельзя менять энергию и объем
+            return
+        
         self.mode = mode
+    
+    def _calculate_and_save_initial_energy(self):
+        """Расчёт и сохранение начальной энергии системы."""
+        self.initial_energy = sum(
+            particle.mass * (particle.v ** 2) / 2 
+            for particle in self.particles
+        )
+    
+    def toggle_isolated_system(self, enabled: bool):
+        """Переключить режим изолированной системы."""
+        self.config.experiment.isolated_system = enabled
+        if enabled:
+            self.mode = "OFF"
+            # Пересчитываем начальную энергию при включении режима
+            self._calculate_and_save_initial_energy()
+    
+    def toggle_brownian_mode(self, enabled: bool):
+        """Переключить режим броуновского движения."""
+        self.config.brownian.enabled = enabled
+        # Перезапускаем симуляцию для применения изменений
+        self.reset_simulation()
+    
+    def toggle_gravity(self, enabled: bool):
+        """Переключить гравитацию."""
+        self.config.gravity.enabled = enabled
+    
+    def toggle_corner_start(self, enabled: bool):
+        """Переключить режим старта из угла."""
+        self.config.experiment.corner_start = enabled
+        # Перезапускаем симуляцию для применения
+        self.reset_simulation()
+    
+    def _calculate_velocity_entropy(self, velocities, n_bins=20):
+        """Расчёт энтропии по распределению скоростей."""
+        if len(velocities) < 10:
+            return None
+        
+        velocities = np.array(velocities)
+        hist, bin_edges = np.histogram(velocities, bins=n_bins, density=True)
+        bin_width = bin_edges[1] - bin_edges[0]
+        probs = hist * bin_width
+        probs = probs[probs > 0]
+        
+        if len(probs) == 0:
+            return None
+        
+        return -np.sum(probs * np.log(probs))
+    
+    def _calculate_h_function(self, velocities, n_bins=30):
+        """Расчёт H-функции Больцмана."""
+        if len(velocities) < 10:
+            return None
+        
+        velocities = np.array(velocities)
+        hist, bin_edges = np.histogram(velocities, bins=n_bins, density=True)
+        bin_width = bin_edges[1] - bin_edges[0]
+        
+        mask = hist > 0
+        if np.sum(mask) == 0:
+            return None
+        
+        f = hist[mask]
+        return np.sum(f * np.log(f)) * bin_width
+    
+    def _calculate_spatial_entropy(self, positions, n_bins_x=10, n_bins_y=10):
+        """Расчёт пространственной энтропии."""
+        if len(positions) < 10:
+            return None
+        
+        x_coords = [p[0] for p in positions]
+        y_coords = [p[1] for p in positions]
+        
+        hist, _, _ = np.histogram2d(x_coords, y_coords, 
+                                     bins=[n_bins_x, n_bins_y],
+                                     range=[[0, self.width], [0, self.height]])
+        
+        total = np.sum(hist)
+        if total == 0:
+            return None
+        
+        probs = hist.flatten() / total
+        probs = probs[probs > 0]
+        
+        if len(probs) == 0:
+            return None
+        
+        return -np.sum(probs * np.log(probs))
+    
+    def _update_ergodic_data(self, velocities):
+        """Обновление данных для эргодической гипотезы."""
+        if len(velocities) == 0 or len(self.particles) == 0:
+            return
+        
+        # Сохраняем скорости каждой частицы
+        for i, v in enumerate(velocities):
+            if i in self.particle_velocity_histories:
+                self.particle_velocity_histories[i].append(v)
+        
+        # Временное среднее для первой частицы
+        if 0 in self.particle_velocity_histories and len(self.particle_velocity_histories[0]) > 0:
+            time_avg = np.mean(self.particle_velocity_histories[0])
+            self.time_averages_history.append(time_avg)
+        
+        # Ансамблевое среднее (среднее по всем частицам в данный момент)
+        ensemble_avg = np.mean(velocities)
+        self.ensemble_averages_history.append(ensemble_avg)
+        
+        # Корреляция текущих скоростей с начальными (для "забывания")
+        if len(self.initial_velocities) == len(velocities) and len(velocities) >= 5:
+            try:
+                from scipy import stats
+                corr, _ = stats.pearsonr(self.initial_velocities, velocities)
+                self.correlations_history.append(corr)
+            except Exception:
+                self.correlations_history.append(None)
+        else:
+            self.correlations_history.append(None)
     
     def stop_simulation(self):
         """Остановка симуляции"""
@@ -383,7 +646,21 @@ class SimulationWidget(QWidget):
         self.VelocityDistribution = []
         self.MeanFreePath = []
         self.CollisionRate = []
+        self.Entropy = []
+        self.MSD = []
+        self.brownian_trajectory = []
+        self.brownian_initial_pos = None
+        self.H_function = []
+        self.SpatialEntropy = []
         self.collision_count = 0
+        self.initial_energy = None
+        # Сброс данных эргодичности
+        self.particle_velocity_histories = {}
+        self.time_averages_history = []
+        self.ensemble_averages_history = []
+        self.initial_velocities = []
+        self.initial_positions_saved = []
+        self.correlations_history = []
         self.init_particles()
         self.running = True
         # Перезапускаем таймер с актуальным интервалом

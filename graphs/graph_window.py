@@ -16,6 +16,11 @@ from .kinetic import update_kinetic_graphs
 from .correlation import update_correlation_graphs
 from .advanced import update_advanced_graphs
 from .realtime import update_realtime_graphs
+from .energy_conservation import update_energy_conservation_graphs
+from .brownian import update_brownian_graphs
+from .boltzmann import update_boltzmann_graphs
+from .entropy import update_entropy_graphs
+from .ergodic import update_ergodic_graphs
 
 
 class GraphWindow(QDialog):
@@ -61,6 +66,11 @@ class GraphWindow(QDialog):
         self.create_correlation_tab()
         self.create_advanced_tab()
         self.create_real_time_tab()
+        self.create_energy_conservation_tab()
+        self.create_brownian_tab()
+        self.create_boltzmann_tab()
+        self.create_entropy_tab()
+        self.create_ergodic_tab()
         
         layout = QVBoxLayout()
         layout.addWidget(self.tab_widget)
@@ -181,6 +191,81 @@ class GraphWindow(QDialog):
         tab.setLayout(layout)
         self.tab_widget.addTab(tab, "Реальное время")
     
+    def create_energy_conservation_tab(self):
+        """Вкладка с графиками сохранения энергии (1-й закон термодинамики)"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+        
+        self.figure_energy = Figure(figsize=self.figure_size)
+        self.canvas_energy = FigureCanvas(self.figure_energy)
+        self.toolbar_energy = NavigationToolbar(self.canvas_energy, self)
+        
+        layout.addWidget(self.toolbar_energy)
+        layout.addWidget(self.canvas_energy)
+        
+        tab.setLayout(layout)
+        self.tab_widget.addTab(tab, "1-й закон ТД")
+    
+    def create_brownian_tab(self):
+        """Вкладка с графиками броуновского движения"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+        
+        self.figure_brownian = Figure(figsize=self.figure_size)
+        self.canvas_brownian = FigureCanvas(self.figure_brownian)
+        self.toolbar_brownian = NavigationToolbar(self.canvas_brownian, self)
+        
+        layout.addWidget(self.toolbar_brownian)
+        layout.addWidget(self.canvas_brownian)
+        
+        tab.setLayout(layout)
+        self.tab_widget.addTab(tab, "Броуновское")
+    
+    def create_boltzmann_tab(self):
+        """Вкладка с графиками распределения Больцмана"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+        
+        self.figure_boltzmann = Figure(figsize=self.figure_size)
+        self.canvas_boltzmann = FigureCanvas(self.figure_boltzmann)
+        self.toolbar_boltzmann = NavigationToolbar(self.canvas_boltzmann, self)
+        
+        layout.addWidget(self.toolbar_boltzmann)
+        layout.addWidget(self.canvas_boltzmann)
+        
+        tab.setLayout(layout)
+        self.tab_widget.addTab(tab, "Больцман")
+    
+    def create_entropy_tab(self):
+        """Вкладка с графиками энтропии (2-й закон термодинамики)"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+        
+        self.figure_entropy = Figure(figsize=self.figure_size)
+        self.canvas_entropy = FigureCanvas(self.figure_entropy)
+        self.toolbar_entropy = NavigationToolbar(self.canvas_entropy, self)
+        
+        layout.addWidget(self.toolbar_entropy)
+        layout.addWidget(self.canvas_entropy)
+        
+        tab.setLayout(layout)
+        self.tab_widget.addTab(tab, "2-й закон ТД")
+    
+    def create_ergodic_tab(self):
+        """Вкладка с графиками эргодической гипотезы"""
+        tab = QWidget()
+        layout = QVBoxLayout()
+        
+        self.figure_ergodic = Figure(figsize=self.figure_size)
+        self.canvas_ergodic = FigureCanvas(self.figure_ergodic)
+        self.toolbar_ergodic = NavigationToolbar(self.canvas_ergodic, self)
+        
+        layout.addWidget(self.toolbar_ergodic)
+        layout.addWidget(self.canvas_ergodic)
+        
+        tab.setLayout(layout)
+        self.tab_widget.addTab(tab, "Эргодичность")
+    
     def init_graphs(self):
         """Инициализация всех графиков"""
         self.update_current_tab({})
@@ -212,6 +297,16 @@ class GraphWindow(QDialog):
                 update_advanced_graphs(self.figure_advanced, self.canvas_advanced, data)
             elif current_index == 5:
                 update_realtime_graphs(self.figure_realtime, self.canvas_realtime, data)
+            elif current_index == 6:
+                update_energy_conservation_graphs(self.figure_energy, self.canvas_energy, data)
+            elif current_index == 7:
+                update_brownian_graphs(self.figure_brownian, self.canvas_brownian, data)
+            elif current_index == 8:
+                update_boltzmann_graphs(self.figure_boltzmann, self.canvas_boltzmann, data)
+            elif current_index == 9:
+                update_entropy_graphs(self.figure_entropy, self.canvas_entropy, data)
+            elif current_index == 10:
+                update_ergodic_graphs(self.figure_ergodic, self.canvas_ergodic, data)
         except Exception as e:
             print(f"Ошибка при обновлении графиков: {e}")
     
@@ -229,6 +324,11 @@ class GraphWindow(QDialog):
             update_correlation_graphs(self.figure_corr, self.canvas_corr, data)
             update_advanced_graphs(self.figure_advanced, self.canvas_advanced, data)
             update_realtime_graphs(self.figure_realtime, self.canvas_realtime, data)
+            update_energy_conservation_graphs(self.figure_energy, self.canvas_energy, data)
+            update_brownian_graphs(self.figure_brownian, self.canvas_brownian, data)
+            update_boltzmann_graphs(self.figure_boltzmann, self.canvas_boltzmann, data)
+            update_entropy_graphs(self.figure_entropy, self.canvas_entropy, data)
+            update_ergodic_graphs(self.figure_ergodic, self.canvas_ergodic, data)
         except Exception as e:
             print(f"Ошибка при обновлении графиков: {e}")
     
@@ -247,7 +347,12 @@ class GraphWindow(QDialog):
             (self.figure_kinetic, "kinetic"),
             (self.figure_corr, "correlation"),
             (self.figure_advanced, "advanced"),
-            (self.figure_realtime, "realtime")
+            (self.figure_realtime, "realtime"),
+            (self.figure_energy, "energy_conservation"),
+            (self.figure_brownian, "brownian"),
+            (self.figure_boltzmann, "boltzmann"),
+            (self.figure_entropy, "entropy"),
+            (self.figure_ergodic, "ergodic")
         ]
         
         for fig, name in figures:

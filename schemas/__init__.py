@@ -12,6 +12,7 @@ from typing import Optional
 from .base import ConfigSection, save_config_to_file, load_config_from_file
 from .simulation import SimulationWindowConfig, TimeConfig, StateChangeConfig, CollisionConfig
 from .particles import ParticlesConfig
+from .physics import GravityConfig, BrownianConfig, ExperimentConfig
 from .ui import MainWindowConfig, GraphWindowConfig, LoggingConfig
 from .graphs import (
     GraphUpdateConfig, 
@@ -51,6 +52,20 @@ class AppConfig(ConfigSection):
     collision: CollisionConfig = Field(
         default_factory=CollisionConfig,
         title="Столкновения"
+    )
+    
+    # Физика
+    gravity: GravityConfig = Field(
+        default_factory=GravityConfig,
+        title="Гравитация"
+    )
+    brownian: BrownianConfig = Field(
+        default_factory=BrownianConfig,
+        title="Броуновское движение"
+    )
+    experiment: ExperimentConfig = Field(
+        default_factory=ExperimentConfig,
+        title="Экспериментальные режимы"
     )
     
     # Частицы
@@ -146,6 +161,9 @@ __all__ = [
     'TimeConfig', 
     'StateChangeConfig',
     'CollisionConfig',
+    'GravityConfig',
+    'BrownianConfig',
+    'ExperimentConfig',
     'ParticlesConfig',
     'MainWindowConfig',
     'GraphWindowConfig',
