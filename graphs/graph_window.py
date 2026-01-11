@@ -14,8 +14,6 @@ from .thermodynamic import update_thermodynamic_graphs
 from .distribution import update_distribution_graphs
 from .kinetic import update_kinetic_graphs
 from .correlation import update_correlation_graphs
-from .statistical import update_statistical_graphs
-from .phase import update_phase_graphs
 from .advanced import update_advanced_graphs
 from .realtime import update_realtime_graphs
 
@@ -61,8 +59,6 @@ class GraphWindow(QDialog):
         self.create_distribution_tab()
         self.create_kinetic_tab()
         self.create_correlation_tab()
-        self.create_statistical_tab()
-        self.create_phase_tab()
         self.create_advanced_tab()
         self.create_real_time_tab()
         
@@ -155,36 +151,6 @@ class GraphWindow(QDialog):
         tab.setLayout(layout)
         self.tab_widget.addTab(tab, "Корреляции")
     
-    def create_statistical_tab(self):
-        """Вкладка со статистическими графиками"""
-        tab = QWidget()
-        layout = QVBoxLayout()
-        
-        self.figure_stat = Figure(figsize=self.figure_size)
-        self.canvas_stat = FigureCanvas(self.figure_stat)
-        self.toolbar_stat = NavigationToolbar(self.canvas_stat, self)
-        
-        layout.addWidget(self.toolbar_stat)
-        layout.addWidget(self.canvas_stat)
-        
-        tab.setLayout(layout)
-        self.tab_widget.addTab(tab, "Статистика")
-    
-    def create_phase_tab(self):
-        """Вкладка с фазовыми диаграммами"""
-        tab = QWidget()
-        layout = QVBoxLayout()
-        
-        self.figure_phase = Figure(figsize=self.figure_size)
-        self.canvas_phase = FigureCanvas(self.figure_phase)
-        self.toolbar_phase = NavigationToolbar(self.canvas_phase, self)
-        
-        layout.addWidget(self.toolbar_phase)
-        layout.addWidget(self.canvas_phase)
-        
-        tab.setLayout(layout)
-        self.tab_widget.addTab(tab, "Фазовые диаграммы")
-    
     def create_advanced_tab(self):
         """Вкладка с продвинутыми графиками"""
         tab = QWidget()
@@ -243,12 +209,8 @@ class GraphWindow(QDialog):
             elif current_index == 3:
                 update_correlation_graphs(self.figure_corr, self.canvas_corr, data)
             elif current_index == 4:
-                update_statistical_graphs(self.figure_stat, self.canvas_stat, data)
-            elif current_index == 5:
-                update_phase_graphs(self.figure_phase, self.canvas_phase, data)
-            elif current_index == 6:
                 update_advanced_graphs(self.figure_advanced, self.canvas_advanced, data)
-            elif current_index == 7:
+            elif current_index == 5:
                 update_realtime_graphs(self.figure_realtime, self.canvas_realtime, data)
         except Exception as e:
             print(f"Ошибка при обновлении графиков: {e}")
@@ -265,8 +227,6 @@ class GraphWindow(QDialog):
             update_distribution_graphs(self.figure_dist, self.canvas_dist, data)
             update_kinetic_graphs(self.figure_kinetic, self.canvas_kinetic, data)
             update_correlation_graphs(self.figure_corr, self.canvas_corr, data)
-            update_statistical_graphs(self.figure_stat, self.canvas_stat, data)
-            update_phase_graphs(self.figure_phase, self.canvas_phase, data)
             update_advanced_graphs(self.figure_advanced, self.canvas_advanced, data)
             update_realtime_graphs(self.figure_realtime, self.canvas_realtime, data)
         except Exception as e:
@@ -286,8 +246,6 @@ class GraphWindow(QDialog):
             (self.figure_dist, "distribution"),
             (self.figure_kinetic, "kinetic"),
             (self.figure_corr, "correlation"),
-            (self.figure_stat, "statistical"),
-            (self.figure_phase, "phase"),
             (self.figure_advanced, "advanced"),
             (self.figure_realtime, "realtime")
         ]

@@ -6,8 +6,6 @@ from .thermodynamic import update_thermodynamic_graphs
 from .distribution import update_distribution_graphs
 from .kinetic import update_kinetic_graphs
 from .correlation import update_correlation_graphs
-from .statistical import update_statistical_graphs
-from .phase import update_phase_graphs
 from .advanced import update_advanced_graphs
 from .realtime import update_realtime_graphs
 
@@ -17,8 +15,6 @@ __all__ = [
     'update_distribution_graphs',
     'update_kinetic_graphs',
     'update_correlation_graphs',
-    'update_statistical_graphs',
-    'update_phase_graphs',
     'update_advanced_graphs',
     'update_realtime_graphs'
 ]

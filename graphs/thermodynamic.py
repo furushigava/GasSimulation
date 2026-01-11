@@ -68,14 +68,16 @@ def update_thermodynamic_graphs(figure, canvas, data):
     ax6.set_title('Температура от времени')
     ax6.grid(True, alpha=0.3)
     
-    # 7. PV диаграмма (цикл)
+    # 7. Параметрический график (цвет = время)
     ax7 = figure.add_subplot(337)
-    if data.get('volume') and data.get('pressure') and len(data['volume']) > 10:
-        ax7.plot(data['volume'], data['pressure'], 'c-', linewidth=1.5)
-        ax7.scatter(data['volume'][-1:], data['pressure'][-1:], color='red', s=30)
+    if data.get('time') and data.get('pressure') and data.get('volume'):
+        n = min(len(data['time']), len(data['pressure']), len(data['volume']))
+        scatter = ax7.scatter(data['volume'][:n], data['pressure'][:n], 
+                            c=data['time'][:n], cmap='viridis', alpha=0.6, s=20)
+        figure.colorbar(scatter, ax=ax7, label='Время')
     ax7.set_xlabel('Объем (x1000)')
     ax7.set_ylabel('Давление')
-    ax7.set_title('PV диаграмма (рабочий цикл)')
+    ax7.set_title('Параметрический график (цвет = время)')
     ax7.grid(True, alpha=0.3)
     
     # 8. Энергия от времени

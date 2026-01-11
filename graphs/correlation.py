@@ -85,44 +85,5 @@ def update_correlation_graphs(figure, canvas, data):
     ax5.set_title('Взаимная корреляция P и V')
     ax5.grid(True, alpha=0.3)
     
-    # 6. Корреляционная матрица
-    ax6 = figure.add_subplot(236)
-    if (data.get('pressure') and data.get('volume') and 
-        data.get('temperature') and data.get('avg_velocity')):
-        
-        # Создаем мини-матрицу
-        n = min(len(data['pressure']), len(data['volume']), 
-               len(data['temperature']), len(data['avg_velocity']))
-        
-        if n > CORRELATION_MATRIX_MIN_POINTS:
-            matrix = np.array([
-                data['pressure'][:n],
-                data['volume'][:n],
-                data['temperature'][:n],
-                data['avg_velocity'][:n]
-            ])
-            
-            # Проверяем, что данные имеют разброс (избегаем деления на ноль)
-            std_vals = np.std(matrix, axis=1)
-            if np.all(std_vals > 1e-10):
-                corr_matrix = np.corrcoef(matrix)
-            else:
-                # Если какой-то ряд константный, заполняем NaN
-                corr_matrix = np.full((4, 4), np.nan)
-                np.fill_diagonal(corr_matrix, 1.0)
-            im = ax6.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
-            
-            # Добавляем текст
-            for i in range(corr_matrix.shape[0]):
-                for j in range(corr_matrix.shape[1]):
-                    text = ax6.text(j, i, f'{corr_matrix[i, j]:.2f}',
-                                   ha="center", va="center", color="black")
-            
-            ax6.set_xticks(range(4))
-            ax6.set_yticks(range(4))
-            ax6.set_xticklabels(['P', 'V', 'T', 'v'])
-            ax6.set_yticklabels(['P', 'V', 'T', 'v'])
-            ax6.set_title('Корреляционная матрица')
-    
     figure.tight_layout()
     canvas.draw()

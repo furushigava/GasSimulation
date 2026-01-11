@@ -42,18 +42,33 @@ def update_kinetic_graphs(figure, canvas, data):
     # 4. Скорость наиболее вероятной частицы
     ax4 = figure.add_subplot(224)
     if data.get('time') and data.get('velocities') and len(data['time']) == len(data['avg_velocity']):
-        ax4.plot(data['time'], data['avg_velocity'], 'orange', linewidth=2, label='Средняя')
+        avg_vel = np.array(data['avg_velocity'])
+        ax4.plot(data['time'], avg_vel, 'orange', linewidth=2, label='Средняя')
         
-        # Добавляем стандартное отклонение
-        if len(data['time']) > 1:
-            # Для простоты используем фиксированный разброс
-            std_region = np.array(data['avg_velocity']) * 0.3
-            ax4.fill_between(data['time'], 
-                            np.array(data['avg_velocity']) - std_region,
-                            np.array(data['avg_velocity']) + std_region,
-                            alpha=0.3, color='orange')
+        # Вычисляем реальное стандартное отклонение из скоростей частиц
+        if len(data['time']) > 1 and len(data['velocities']) > 0:
+            # Получаем текущее std из последнего набора скоростей
+            current_velocities = np.array(data['velocities'][-1]) if isinstance(data['velocities'][-1], (list, np.ndarray)) else data['velocities']
+            current_std = np.std(current_velocities) if len(current_velocities) > 0 else avg_vel[-1] * 0.3
+            
+            # Используем относительное std для всего графика
+            std_ratio = current_std / avg_vel[-1] if avg_vel[-1] > 0 else 0.3
+            std_region = avg_vel * std_ratio
+            
+            # Доверительный интервал (±1 std ≈ 68%)
+            lower_bound = avg_vel - std_region
+            upper_bound = avg_vel + std_region
+            
+            ax4.fill_between(data['time'], lower_bound, upper_bound,
+                            alpha=0.3, color='orange', label=f'±1σ (68% ДИ)')
+            
+            # Добавляем подписи с информацией
+            current_mean = avg_vel[-1]
+            info_text = f'σ = {current_std:.3f}\nДИ: [{current_mean - current_std:.3f}, {current_mean + current_std:.3f}]\nОтн. σ = {std_ratio*100:.1f}%'
+            ax4.text(0.02, 0.98, info_text, transform=ax4.transAxes, fontsize=8,
+                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
         
-        ax4.legend()
+        ax4.legend(loc='upper right')
         ax4.set_xlabel('Время')
         ax4.set_ylabel('Скорость')
         ax4.set_title('Изменение скорости с доверительным интервалом')
