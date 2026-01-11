@@ -68,6 +68,8 @@ class SimulationWidget(QWidget):
         self.Density = []
         self.VelocityDistribution = []
         self.MeanFreePath = []
+        self.MeanFreePath_theoretical = []
+        self.MeanFreePath_roll100 = []
         self.CollisionRate = []
         
         self.collision_count = 0
@@ -154,6 +156,14 @@ class SimulationWidget(QWidget):
         self.ensemble_averages_history = []
         self.correlations_history = []
         
+        # Инициализация данных для эмпирического измерения средней длины свободного пробега
+        self._free_path_samples = []
+        self._last_collision_pos = {}
+        self._last_collision_time = {}
+        for idx, p in enumerate(self.particles):
+            self._last_collision_pos[idx] = (p.x, p.y)
+            self._last_collision_time[idx] = self.NOW_TIME
+
         # Сохраняем начальную энергию для проверки 1-го закона
         self._calculate_and_save_initial_energy()
     
@@ -238,26 +248,69 @@ class SimulationWidget(QWidget):
     
     def calculate_mean_free_path(self):
         """Расчет средней длины свободного пробега"""
+        # Предпочитаем эмпирическую оценку, если есть выборка
+        try:
+            if hasattr(self, '_free_path_samples') and len(self._free_path_samples) > 0:
+                return mean(self._free_path_samples)
+        except Exception:
+            pass
+
+        # Фоллбек на аналитическую формулу при отсутствии выборки
         if self.nn == 0 or self.width * self.height == 0:
             return 0
-        
+
         particle_density = self.nn / (self.width * self.height)
         cross_section = math.pi * (2 * self.r1) ** 2
-        
+
         if particle_density * cross_section == 0:
             return float('inf')
-        
+
         return 1 / (math.sqrt(2) * particle_density * cross_section)
+
+    def calculate_mean_free_path_analytic(self):
+        """Аналитическая формула средней длины свободного пробега (без использования эмпирики)."""
+        if self.nn == 0 or self.width * self.height == 0:
+            return 0
+
+        n = self.nn / (self.width * self.height)  # 2D плотность
+        
+        r = self.r1
+        # print(n, r)
+        # print(1 / (2 * math.sqrt(2) * n * r))
+        return 1 / (4 * math.sqrt(2) * n * r)
     
     def calculate_collision_rate(self):
         """Расчет частоты столкновений"""
         avg_velocity = mean([p.v for p in self.particles]) if self.particles else 0
-        mean_free_path = self.calculate_mean_free_path()
-        
-        if mean_free_path == 0 or mean_free_path == float('inf'):
+        # Используем эффективную длину свободного пробега, учитывающую столкновения с другими частицами и со стенками
+        # λ_eff вычисляется по сумме частот: 1/λ_eff = 1/λ_pp + 1/λ_wall
+        try:
+            lambda_pp = self.calculate_mean_free_path_analytic()
+        except Exception:
+            lambda_pp = None
+
+        # Средняя дистанция до стены (характерный размер сосуда)
+        try:
+            lambda_wall = min(self.width, self.height) / 2.0 if (self.width and self.height) else None
+        except Exception:
+            lambda_wall = None
+
+        # Безопасно комбинируем обратные величины
+        lambda_eff = None
+        try:
+            if lambda_pp and lambda_pp > 0 and lambda_wall and lambda_wall > 0:
+                lambda_eff = 1.0 / (1.0 / lambda_pp + 1.0 / lambda_wall)
+            elif lambda_pp and lambda_pp > 0:
+                lambda_eff = lambda_pp
+            elif lambda_wall and lambda_wall > 0:
+                lambda_eff = lambda_wall
+        except Exception:
+            lambda_eff = None
+
+        if not lambda_eff or lambda_eff == 0 or lambda_eff == float('inf'):
             return 0
-        
-        return avg_velocity / mean_free_path
+
+        return avg_velocity / lambda_eff
     
     def calculate_lennard_jones_force(self, r: float, epsilon: float, sigma: float) -> tuple:
         """
@@ -638,6 +691,24 @@ class SimulationWidget(QWidget):
                                 if p2.I > 0:
                                     omega_transfer = 0.3 * tangential_velocity2 / (p2.I * impact_arm) if impact_arm > 0 else 0
                                     p2.omega += random.uniform(-abs(omega_transfer), abs(omega_transfer))
+
+                            # Эмпирическая запись длины свободного пробега: расстояние, пройденное частицей с момента последнего столкновения
+                            try:
+                                # Индексы i и j доступны из внешнего цикла
+                                for idx, part in ((i, p1), (j, p2)):
+                                    last = self._last_collision_pos.get(idx)
+                                    if last is not None:
+                                        dx = part.x - last[0]
+                                        dy = part.y - last[1]
+                                        dist_moved = math.sqrt(dx * dx + dy * dy)
+                                        if dist_moved > 0:
+                                            self._free_path_samples.append(dist_moved)
+                                    # Обновляем информацию о последнем столкновении
+                                    self._last_collision_pos[idx] = (part.x, part.y)
+                                    self._last_collision_time[idx] = self.NOW_TIME
+                            except Exception:
+                                # Безопасно пропускаем запись, если структура не инициализирована
+                                pass
                             
                             # Нормализация углов
                             while p1.a > math.pi:
@@ -721,7 +792,30 @@ class SimulationWidget(QWidget):
             volume = self.width * self.height - self.nn * math.pi * (self.r1**2)
             avg_velocity = mean(velocities) if velocities else 0
             density = self.nn / (self.width * self.height) if self.width * self.height > 0 else 0
+            # Эмпирическая оценка (если есть выборка), иначе аналитическая/оценка
             mean_free_path = self.calculate_mean_free_path()
+            # Аналитическое значение, соответствующее столкновениям частиц-пар
+            mean_free_path_pp = self.calculate_mean_free_path_analytic()
+            # Оценка длины свободного пробега из-за стен: ~L/2 (характерный размер сосуда)
+            try:
+                mean_free_path_wall = min(self.width, self.height) / 2.0 if (self.width and self.height) else float('inf')
+            except Exception:
+                mean_free_path_wall = float('inf')
+
+            # Эффективная длина свободного пробега из суммы частот столкновений
+            try:
+                if mean_free_path_pp and mean_free_path_pp > 0 and mean_free_path_wall and mean_free_path_wall > 0:
+                    mean_free_path_eff = 1.0 / (1.0 / mean_free_path_pp + 1.0 / mean_free_path_wall)
+                elif mean_free_path_pp and mean_free_path_pp > 0:
+                    mean_free_path_eff = mean_free_path_pp
+                elif mean_free_path_wall and mean_free_path_wall > 0:
+                    mean_free_path_eff = mean_free_path_wall
+                else:
+                    mean_free_path_eff = float('inf')
+            except Exception:
+                mean_free_path_eff = float('inf')
+
+            # Частота столкновений на основе эффективной длины свободного пробега
             collision_rate = self.calculate_collision_rate()
             
             # Формирование строки лога
@@ -746,7 +840,38 @@ class SimulationWidget(QWidget):
             self.PotentialEnergy.append(self.potential_energy)
             self.Density.append(density)
             self.VelocityDistribution.extend(velocities)
+            # Сохраняем эмпирическую оценку (или фоллбек)
             self.MeanFreePath.append(mean_free_path)
+            # Сохраняем теоретическое значение (частицы-пары)
+            if not hasattr(self, 'MeanFreePath_theoretical'):
+                self.MeanFreePath_theoretical = []
+            self.MeanFreePath_theoretical.append(mean_free_path_pp)
+            # Сохраняем вклад стен и эффективную длину
+            if not hasattr(self, 'MeanFreePath_wall'):
+                self.MeanFreePath_wall = []
+            self.MeanFreePath_wall.append(mean_free_path_wall)
+            if not hasattr(self, 'MeanFreePath_eff'):
+                self.MeanFreePath_eff = []
+            self.MeanFreePath_eff.append(mean_free_path_eff)
+            # Вычисляем скользящее среднее по последним 100 значениям (эмпирическое)
+            try:
+                if not hasattr(self, 'MeanFreePath_roll100'):
+                    self.MeanFreePath_roll100 = []
+
+                # Берём последние конечные значения из эмпирической кривой
+                finite_vals = [v for v in self.MeanFreePath if v is not None and math.isfinite(v)]
+                if len(finite_vals) == 0:
+                    roll = mean_free_path_theory
+                else:
+                    window = finite_vals[-100:]
+                    roll = mean(window)
+
+                self.MeanFreePath_roll100.append(roll)
+            except Exception:
+                # на случай ошибок — добавляем теоретическое значение
+                if not hasattr(self, 'MeanFreePath_roll100'):
+                    self.MeanFreePath_roll100 = []
+                self.MeanFreePath_roll100.append(mean_free_path_theory)
             self.CollisionRate.append(collision_rate)
             
             # Позиции частиц для распределения Больцмана и энтропии
@@ -781,6 +906,10 @@ class SimulationWidget(QWidget):
                 'density': self.Density,
                 'velocities': velocities,
                 'mean_free_path': self.MeanFreePath,
+                'mean_free_path_theoretical': self.MeanFreePath_theoretical,
+                'mean_free_path_roll100': self.MeanFreePath_roll100,
+                'mean_free_path_wall': getattr(self, 'MeanFreePath_wall', []),
+                'mean_free_path_eff': getattr(self, 'MeanFreePath_eff', []),
                 'collision_rate': self.CollisionRate,
                 'mode': self.mode,
                 'collision_count': self.collision_count,
@@ -992,9 +1121,19 @@ class SimulationWidget(QWidget):
         # Корреляция текущих скоростей с начальными (для "забывания")
         if len(self.initial_velocities) == len(velocities) and len(velocities) >= 5:
             try:
-                from scipy import stats
-                corr, _ = stats.pearsonr(self.initial_velocities, velocities)
-                self.correlations_history.append(corr)
+                init_arr = np.array(self.initial_velocities)
+                cur_arr = np.array(velocities)
+                # Если один из массивов константный или имеет нулевое стандартное отклонение,
+                # pearsonr выдаст предупреждение / некорректное значение. В этом случае не считаем корреляцию.
+                if np.std(init_arr) == 0 or np.std(cur_arr) == 0:
+                    self.correlations_history.append(None)
+                else:
+                    from scipy import stats
+                    import warnings
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        corr, _ = stats.pearsonr(init_arr, cur_arr)
+                    self.correlations_history.append(corr)
             except Exception:
                 self.correlations_history.append(None)
         else:
@@ -1033,6 +1172,8 @@ class SimulationWidget(QWidget):
         self.Density = []
         self.VelocityDistribution = []
         self.MeanFreePath = []
+        self.MeanFreePath_theoretical = []
+        self.MeanFreePath_roll100 = []
         self.CollisionRate = []
         self.Entropy = []
         self.MSD = []
