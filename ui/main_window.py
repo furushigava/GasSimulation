@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
         self.btn_compression = QPushButton("Сжатие (C)")
         self.btn_off = QPushButton("Стоп процесс (Ctrl)")
         self.btn_stop = QPushButton("Остановить симуляцию (Esc)")
+        self.btn_start = QPushButton("Запустить симуляцию")
         self.btn_reset = QPushButton("Сбросить")
         self.btn_graphs = QPushButton("Показать графики")
         self.btn_statistics = QPushButton("Статистика")
@@ -61,8 +62,8 @@ class MainWindow(QMainWindow):
         # Настройка кнопок - размещаем по 4 кнопки в ряд
         buttons = [
             self.btn_heat, self.btn_freeze, self.btn_expansion, self.btn_compression,
-            self.btn_off, self.btn_stop, self.btn_reset, self.btn_settings,
-            self.btn_statistics, self.btn_graphs, self.btn_exit
+            self.btn_off, self.btn_stop, self.btn_start, self.btn_reset,
+            self.btn_statistics, self.btn_graphs, self.btn_settings, self.btn_exit
         ]
         
         for i, btn in enumerate(buttons):
@@ -184,6 +185,7 @@ class MainWindow(QMainWindow):
         self.btn_compression.clicked.connect(lambda: self.simulation.set_mode("compression"))
         self.btn_off.clicked.connect(lambda: self.simulation.set_mode("OFF"))
         self.btn_stop.clicked.connect(self.simulation.stop_simulation)
+        self.btn_start.clicked.connect(self.simulation.start_simulation)
         self.btn_reset.clicked.connect(self.simulation.reset_simulation)
         self.btn_graphs.clicked.connect(self.show_graphs)
         self.btn_statistics.clicked.connect(self.show_statistics)

@@ -356,6 +356,11 @@ class SimulationWidget(QWidget):
         self.running = False
         self.simulation_timer.stop()
     
+    def start_simulation(self):
+        """Запуск симуляции"""
+        self.running = True
+        self.simulation_timer.start(int(self.time_sleep * 1000))
+    
     def reset_simulation(self):
         """Сброс симуляции"""
         self.width = self.width0
