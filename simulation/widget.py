@@ -737,8 +737,9 @@ class SimulationWidget(QWidget):
             
             # Сохранение данных для графиков
             self.Pressure.append(avg_pressure)
-            self.Temperature.append(self.Energy_check / 100)
-            self.Volume.append(volume / 1000)
+            self.Temperature.append(self.Energy_check / self.nn * 100)
+            # print(f"k_b = {self.Energy_check / (100 * len(self.particles))}")
+            self.Volume.append(volume)
             self.Time_meas.append(self.NOW_TIME)
             self.AvgVelocity.append(avg_velocity)
             self.KineticEnergy.append(self.Energy_check)
@@ -854,6 +855,7 @@ class SimulationWidget(QWidget):
                     }
                 }
             }
+            # print(f"volume: {volume}")
             self.data_updated.emit(data_dict)
             
             # Сброс счетчиков импульса

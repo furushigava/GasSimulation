@@ -10,7 +10,7 @@ class ParticlesConfig(ConfigSection):
     """Параметры частиц."""
     
     count: int = Field(
-        default=200,
+        default=100,
         ge=1,
         le=1000,
         title="Количество частиц",
@@ -33,7 +33,7 @@ class ParticlesConfig(ConfigSection):
     initial_speed: int = Field(
         default=5,
         ge=1,
-        le=50,
+        le=500,
         title="Начальная скорость",
         description="Начальная скорость частиц"
     )

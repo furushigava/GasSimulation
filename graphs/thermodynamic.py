@@ -2,6 +2,9 @@
 Функции для обновления термодинамических графиков.
 """
 
+import numpy as np
+from scipy import stats
+
 
 def update_thermodynamic_graphs(figure, canvas, data):
     """Обновление термодинамических графиков"""
@@ -89,13 +92,64 @@ def update_thermodynamic_graphs(figure, canvas, data):
     ax8.set_title('Энергия системы от времени')
     ax8.grid(True, alpha=0.3)
     
-    # 9. Плотность от времени
+    # 9. Проверка уравнения состояния PV = NkT (для 2D: PV = E_kin)
     ax9 = figure.add_subplot(339)
-    if data.get('time') and data.get('density'):
-        ax9.plot(data['time'], data['density'], 'teal', linewidth=2)
+    if data.get('time') and data.get('pressure') and data.get('volume') and data.get('kinetic_energy'):
+        # В 2D идеальном газе: PV = NkT (т.к. 2 степени свободы)
+        # Давление и объём уже в согласованных единицах симуляции
+        
+        pv_values = []
+        ratio_values = []
+        
+        for i in range(len(data['time'])):
+            if i < len(data['pressure']) and i < len(data['volume']):
+                P = data['pressure'][i]
+                V = data['volume'][i]  # Восстанавливаем исходный объём
+                # E_kin = data['kinetic_energy'][i]
+                
+                pv = P * V
+                pv_values.append(pv)
+                
+                N = data.get('n_particles', 1)
+                k = 1
+                T = data['temperature'][i] if i < len(data['temperature']) else 1
+                
+                if N > 0 and T > 0:
+                    E_kin = N * k * T  # В 2D: E_кин = NkT
+                    ratio = pv / E_kin
+                    ratio_values.append(ratio)
+                #if E_kin > 0:
+                #    ratio_values.append(pv / E_kin)
+                #else:
+                #     ratio_values.append(0)
+        
+        if ratio_values:
+            time_data = data['time'][:len(ratio_values)]
+            ax9.plot(time_data, ratio_values, 'teal', linewidth=2, label='PV / E')
+            ax9.axhline(y=1.0, color='red', linestyle='--', linewidth=1.5, label='Идеальный газ')
+            
+            # Среднее значение (по последним 100 точкам)
+            stable_ratios = ratio_values[-100:] if len(ratio_values) >= 100 else ratio_values
+            avg_ratio = sum(stable_ratios) / len(stable_ratios) if stable_ratios else 0
+            ax9.axhline(y=avg_ratio, color='green', linestyle=':', linewidth=1.5, 
+                       label=f'Среднее: {avg_ratio:.3f}')
+            
+            # Статистический тест
+            if len(stable_ratios) > 1:
+                t_stat, p_value = stats.ttest_1samp(stable_ratios, 1.0)
+                is_equal = "Да" if p_value > 0.05 else "Нет"
+                std_ratio = np.std(stable_ratios)
+                
+                # Добавляем аннотацию с статистиками
+                ax9.annotate(f'Среднее: {avg_ratio:.3f}\nSTD: {std_ratio:.3f}\nT-test (last 100, a=0.05) p: {p_value:.3f}\nРавенство: {is_equal}', 
+                             xy=(0.02, 0.98), xycoords='axes fraction', fontsize=8,
+                             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            
+            ax9.legend(loc='upper right', fontsize=7)
+    
     ax9.set_xlabel('Время')
-    ax9.set_ylabel('Плотность (частиц/площадь)')
-    ax9.set_title('Плотность от времени')
+    ax9.set_ylabel('PV / NkT')
+    ax9.set_title('Проверка PV = NkT')
     ax9.grid(True, alpha=0.3)
     
     figure.tight_layout()
