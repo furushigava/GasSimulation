@@ -3,7 +3,9 @@
 """
 import numpy as np
 
-from config import MIN_CORRELATION_POINTS, CORRELATION_MATRIX_MIN_POINTS
+# Дефолтные значения для корреляционных графиков
+MIN_CORRELATION_POINTS = 10
+CORRELATION_MATRIX_MIN_POINTS = 5
 
 
 def update_correlation_graphs(figure, canvas, data):

@@ -4,13 +4,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from config import (
-    FFT_MIN_POINTS,
-    WAVELET_SCALES_MAX,
-    FRACTAL_BOX_SIZES_NUM,
-    HURST_MIN_SIZE,
-    HURST_SIZES_NUM
-)
+# Дефолтные значения для продвинутых графиков
+FFT_MIN_POINTS = 10
+WAVELET_SCALES_MAX = 31
+FRACTAL_BOX_SIZES_NUM = 20
+HURST_MIN_SIZE = 10
+HURST_SIZES_NUM = 10
 
 
 def update_advanced_graphs(figure, canvas, data):

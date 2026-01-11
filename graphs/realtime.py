@@ -4,7 +4,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from config import REALTIME_POINTS_LIMIT, COMBINED_GRAPH_POINTS, MODE_INDICATOR_COLORS
+# Дефолтные значения для графиков реального времени
+# Эти значения могут быть переопределены через конфигурацию в будущем
+REALTIME_POINTS_LIMIT = 100
+COMBINED_GRAPH_POINTS = 50
+MODE_INDICATOR_COLORS = {
+    'OFF': 'gray',
+    'heat': 'red',
+    'freeze': 'blue',
+    'expansion': 'green',
+    'compression': 'orange'
+}
 
 
 def update_realtime_graphs(figure, canvas, data):

@@ -3,36 +3,43 @@
 """
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QTextEdit, QLabel, 
-                             QGroupBox, QGridLayout)
+                             QGroupBox, QGridLayout, QMenuBar, QMenu, QAction)
 from PyQt5.QtGui import QFont
 
 from simulation import SimulationWidget
 from graphs import GraphWindow
-from config import (
-    MAIN_WINDOW_WIDTH,
-    MAIN_WINDOW_HEIGHT,
-    SIMULATION_WIDTH,
-    SIMULATION_HEIGHT,
-    PARTICLE_COUNT,
-    MODE_COLORS,
-    LABEL_TEXT_COLOR,
-    LABEL_BG_COLOR,
-    GROUP_TEXT_COLOR
-)
+from schemas import AppConfig
+from ui.config_window import ConfigWindow
 
 
 class MainWindow(QMainWindow):
     """Главное окно приложения симуляции газа."""
     
-    def __init__(self):
+    def __init__(self, config: AppConfig = None):
         super().__init__()
+        
+        # Инициализируем конфигурацию (по умолчанию - дефолтные значения)
+        self.config = config if config is not None else AppConfig.get_default()
+        
         self.setWindowTitle("GAS Simulation - PyQt5 Version")
-        self.setGeometry(100, 100, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
+        self.setGeometry(
+            100, 100, 
+            self.config.main_window.width, 
+            self.config.main_window.height
+        )
+        
+        # Создаем меню
+        self._create_menu()
         
         # Центральный виджет и основной layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        
+        # Получаем цвета из конфигурации
+        label_bg_color = self.config.ui_colors.label_bg_color
+        label_text_color = self.config.ui_colors.label_text_color
+        group_text_color = self.config.ui_colors.group_text_color
         
         # 1. Панель параметров (сверху)
         params_group = QGroupBox("Параметры симуляции")
@@ -48,23 +55,27 @@ class MainWindow(QMainWindow):
         self.btn_reset = QPushButton("Сбросить")
         self.btn_graphs = QPushButton("Показать графики")
         self.btn_statistics = QPushButton("Статистика")
+        self.btn_settings = QPushButton("Настройки")
         
-        # Настройка кнопок
+        # Настройка кнопок - размещаем в 4 ряда по 3 кнопки
         buttons = [
             self.btn_heat, self.btn_freeze, self.btn_expansion, 
             self.btn_compression, self.btn_off, self.btn_stop, 
-            self.btn_reset, self.btn_graphs, self.btn_statistics
+            self.btn_reset, self.btn_graphs, self.btn_statistics,
+            self.btn_settings
         ]
         
         for i, btn in enumerate(buttons):
             btn.setMinimumHeight(40)
             btn.setStyleSheet("font-weight: bold;")
-            params_layout.addWidget(btn, i // 3, i % 3)
+            row = i // 3
+            col = i % 3
+            params_layout.addWidget(btn, row, col)
         
-        # Параметры
+        # Параметры - добавляем в строку 4 (после 4 рядов кнопок: 0, 1, 2, 3)
         stats_layout = QHBoxLayout()
         
-        self.lbl_particles = QLabel(f"Частиц: {PARTICLE_COUNT}")
+        self.lbl_particles = QLabel(f"Частиц: {self.config.particles.count}")
         self.lbl_mode = QLabel("Режим: OFF")
         self.lbl_energy = QLabel("Энергия: 0.00")
         self.lbl_pressure = QLabel("Давление: 0.00")
@@ -73,13 +84,14 @@ class MainWindow(QMainWindow):
         
         for lbl in [self.lbl_particles, self.lbl_mode, self.lbl_energy, 
                    self.lbl_pressure, self.lbl_volume, self.lbl_velocity]:
-            lbl.setStyleSheet(f"background-color: {LABEL_BG_COLOR}; color: {LABEL_TEXT_COLOR}; padding: 5px; border-radius: 3px;")
+            lbl.setStyleSheet(f"background-color: {label_bg_color}; color: {label_text_color}; padding: 5px; border-radius: 3px;")
             stats_layout.addWidget(lbl)
         
-        params_layout.addLayout(stats_layout, 3, 0, 1, 3)
+        # Строка 4 - после кнопок в строках 0, 1, 2, 3
+        params_layout.addLayout(stats_layout, 4, 0, 1, 3)
         
         params_group.setLayout(params_layout)
-        params_group.setStyleSheet(f"QGroupBox {{ color: {GROUP_TEXT_COLOR}; font-weight: bold; }}")
+        params_group.setStyleSheet(f"QGroupBox {{ color: {group_text_color}; font-weight: bold; }}")
         main_layout.addWidget(params_group)
         
         # 2. Нижняя часть: логи слева, демонстрация справа
@@ -88,7 +100,7 @@ class MainWindow(QMainWindow):
         
         # Логи (слева)
         log_group = QGroupBox("Логи симуляции")
-        log_group.setStyleSheet(f"QGroupBox {{ color: {GROUP_TEXT_COLOR}; font-weight: bold; }}")
+        log_group.setStyleSheet(f"QGroupBox {{ color: {group_text_color}; font-weight: bold; }}")
         log_layout = QVBoxLayout()
         
         # Заголовок логов
@@ -110,8 +122,12 @@ class MainWindow(QMainWindow):
         demo_widget = QWidget()
         demo_layout = QVBoxLayout(demo_widget)
         
-        # Виджет симуляции
-        self.simulation = SimulationWidget(SIMULATION_WIDTH, SIMULATION_HEIGHT)
+        # Виджет симуляции с конфигурацией
+        self.simulation = SimulationWidget(
+            self.config.simulation_window.width, 
+            self.config.simulation_window.height,
+            self.config
+        )
         demo_layout.addWidget(self.simulation)
         
         bottom_layout.addWidget(demo_widget)
@@ -136,6 +152,28 @@ class MainWindow(QMainWindow):
         
         # Окно графиков (будет создано при необходимости)
         self.graph_window = None
+        
+        # Окно настроек
+        self.config_window = None
+    
+    def _create_menu(self):
+        """Создать меню приложения."""
+        menubar = self.menuBar()
+        
+        # Меню "Файл"
+        file_menu = menubar.addMenu("Файл")
+        
+        settings_action = QAction("⚙️ Настройки...", self)
+        settings_action.setShortcut("Ctrl+,")
+        settings_action.triggered.connect(self.show_settings)
+        file_menu.addAction(settings_action)
+        
+        file_menu.addSeparator()
+        
+        exit_action = QAction("Выход", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
     
     def connect_signals(self):
         """Подключение сигналов кнопок и обновлений"""
@@ -149,6 +187,7 @@ class MainWindow(QMainWindow):
         self.btn_reset.clicked.connect(self.simulation.reset_simulation)
         self.btn_graphs.clicked.connect(self.show_graphs)
         self.btn_statistics.clicked.connect(self.show_statistics)
+        self.btn_settings.clicked.connect(self.show_settings)
         
         # Обновление данных из симуляции
         self.simulation.update_signal.connect(self.update_display)
@@ -174,7 +213,8 @@ class MainWindow(QMainWindow):
         self.lbl_velocity.setText(f"Ср.скорость: {avg_velocity:.3f}")
         
         # Цветовая индикация режима
-        color = MODE_COLORS.get(self.simulation.mode, '#f0f0f0')
+        mode_colors = self.config.mode_colors.to_dict_by_mode()
+        color = mode_colors.get(self.simulation.mode, '#f0f0f0')
         self.lbl_mode.setStyleSheet(f"background-color: {color}; padding: 5px; border-radius: 3px;")
     
     def show_graphs(self):
@@ -183,9 +223,30 @@ class MainWindow(QMainWindow):
         if self.graph_window is not None:
             self.graph_window.close()
             self.graph_window = None
-        self.graph_window = GraphWindow(self.simulation, self)
+        self.graph_window = GraphWindow(self.simulation, self, self.config)
         self.graph_window.show()
         self.graph_window.raise_()
+    
+    def show_settings(self):
+        """Показать окно настроек."""
+        self.config_window = ConfigWindow(self.config, self)
+        self.config_window.config_applied.connect(self._apply_new_config)
+        self.config_window.exec_()
+    
+    def _apply_new_config(self, new_config: AppConfig):
+        """Применить новую конфигурацию."""
+        self.config = new_config
+        
+        # Обновляем лейбл количества частиц
+        self.lbl_particles.setText(f"Частиц: {self.config.particles.count}")
+        
+        # Применяем конфигурацию к симуляции и перезапускаем
+        self.simulation.apply_config(self.config)
+        
+        # Закрываем окно графиков (будет пересоздано с новым конфигом)
+        if self.graph_window is not None:
+            self.graph_window.close()
+            self.graph_window = None
     
     def show_statistics(self):
         """Показать статистику"""

@@ -13,30 +13,7 @@ from PyQt5.QtGui import QPainter, QColor, QPen
 import numpy as np
 
 from models import GasParticle
-from config import (
-    SIMULATION_WIDTH,
-    SIMULATION_HEIGHT,
-    PARTICLE_COUNT,
-    PARTICLE_RADIUS,
-    PARTICLE_MASS,
-    PARTICLE_INITIAL_SPEED,
-    TIME_STEP,
-    TIME_CHECK_INTERVAL,
-    EXPANSION_RATE,
-    COMPRESSION_RATE,
-    HEAT_RATE,
-    FREEZE_RATE,
-    FREEZE_MIN_COUNTER,
-    COLLISION_DISTANCE_MULTIPLIER,
-    COLLISION_OVERLAP_THRESHOLD,
-    COLLISION_PREDICTION_STEP,
-    LOG_BUFFER_SIZE,
-    PARTICLE_COLOR_FIRST,
-    BORDER_COLOR_OUTER,
-    BORDER_COLOR_INNER,
-    TRAJECTORY_COLOR,
-    BACKGROUND_COLOR
-)
+from schemas import AppConfig
 
 
 class SimulationWidget(QWidget):
@@ -45,25 +22,30 @@ class SimulationWidget(QWidget):
     update_signal = pyqtSignal(float, float, float, float, str)
     data_updated = pyqtSignal(dict)  # Для передачи данных в окно графиков
     
-    def __init__(self, width=SIMULATION_WIDTH, height=SIMULATION_HEIGHT):
+    def __init__(self, width=500, height=500, config: AppConfig = None):
         super().__init__()
+        
+        # Используем конфигурацию или создаем дефолтную
+        self.config = config if config is not None else AppConfig.get_default()
+        
         self.width0 = width
         self.height0 = height
         self.width = width
         self.height = height
         self.setFixedSize(int(width * 1.5), height)
         
-        self.nn = PARTICLE_COUNT  # количество частиц
+        # Параметры из конфигурации
+        self.nn = self.config.particles.count
         self.particles = []
-        self.r1 = PARTICLE_RADIUS
-        self.m1 = PARTICLE_MASS
-        self.v_start = PARTICLE_INITIAL_SPEED
+        self.r1 = self.config.particles.radius
+        self.m1 = self.config.particles.mass
+        self.v_start = self.config.particles.initial_speed
         
         self.mode = "OFF"
         self.running = True
         self.NOW_TIME = 0
-        self.time_sleep = TIME_STEP
-        self.time_check = TIME_CHECK_INTERVAL
+        self.time_sleep = self.config.time.time_step
+        self.time_check = self.config.time.check_interval
         self.timer = 0
         self.counter = 0
         
@@ -88,7 +70,7 @@ class SimulationWidget(QWidget):
         self.collision_count = 0
         self.last_collision_time = 0
         
-        self.log_buffer = deque(maxlen=LOG_BUFFER_SIZE)
+        self.log_buffer = deque(maxlen=self.config.logging.buffer_size)
         
         self.init_particles()
         
@@ -97,17 +79,18 @@ class SimulationWidget(QWidget):
         self.simulation_timer.timeout.connect(self.update_simulation)
         self.simulation_timer.start(int(self.time_sleep * 1000))
         
-        self.setStyleSheet(f"background-color: {BACKGROUND_COLOR};")
+        self.setStyleSheet(f"background-color: {self.config.ui_colors.background_color};")
         
     def init_particles(self):
         """Инициализация частиц"""
         self.particles = []
+        first_particle_color = self.config.particle_colors.first_particle_color
         for i in range(self.nn):
             x = random.uniform(self.r1, self.width - self.r1)
             y = random.uniform(self.r1, self.height - self.r1)
-            particle = GasParticle(x, y, self.r1, self.m1, self.v_start)
+            particle = GasParticle(x, y, self.r1, self.m1, self.v_start, self.config)
             if i == 0:
-                particle.color = QColor(*PARTICLE_COLOR_FIRST)  # Первая частица зеленая
+                particle.color = QColor(*first_particle_color)  # Первая частица зеленая
             self.particles.append(particle)
     
     def paintEvent(self, event):
@@ -115,12 +98,17 @@ class SimulationWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
+        # Получаем цвета из конфигурации
+        border_outer = self.config.border_colors.outer_color
+        border_inner = self.config.border_colors.inner_color
+        trajectory_color = self.config.particle_colors.trajectory_color
+        
         # Рисуем внешнюю границу
-        painter.setPen(QPen(QColor(*BORDER_COLOR_OUTER), 5))
+        painter.setPen(QPen(QColor(*border_outer), 5))
         painter.drawRect(0, 0, int(self.width0), int(self.height0))
         
         # Рисуем текущую границу сосуда
-        painter.setPen(QPen(QColor(*BORDER_COLOR_INNER), 5))
+        painter.setPen(QPen(QColor(*border_inner), 5))
         painter.drawRect(0, 0, int(self.width), int(self.height))
         
         # Рисуем частицы
@@ -136,7 +124,7 @@ class SimulationWidget(QWidget):
             
             # Рисуем траекторию для первых 5 частиц
             if particle == self.particles[0] and len(particle.trajectory) > 1:
-                painter.setPen(QPen(QColor(*TRAJECTORY_COLOR), 1))
+                painter.setPen(QPen(QColor(*trajectory_color), 1))
                 for i in range(len(particle.trajectory) - 1):
                     x1, y1 = particle.trajectory[i]
                     x2, y2 = particle.trajectory[i + 1]
@@ -214,19 +202,20 @@ class SimulationWidget(QWidget):
                 p1 = self.particles[i]
                 p2 = self.particles[j]
                 
-                if (abs(p1.x - p2.x) <= COLLISION_DISTANCE_MULTIPLIER * p1.radius and 
-                    abs(p1.y - p2.y) <= COLLISION_DISTANCE_MULTIPLIER * p1.radius):
+                if (abs(p1.x - p2.x) <= self.config.collision.distance_multiplier * p1.radius and 
+                    abs(p1.y - p2.y) <= self.config.collision.distance_multiplier * p1.radius):
                     
                     dist = math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
                     
-                    if dist <= p1.radius * 2 + COLLISION_OVERLAP_THRESHOLD:
+                    if dist <= p1.radius * 2 + self.config.collision.overlap_threshold:
                         collisions_this_frame += 1
                         
                         # Рассчитываем новые положения
-                        x1_new = p1.x + p1.v * math.cos(p1.a) * COLLISION_PREDICTION_STEP
-                        y1_new = p1.y + p1.v * math.sin(p1.a) * COLLISION_PREDICTION_STEP
-                        x2_new = p2.x + p2.v * math.cos(p2.a) * COLLISION_PREDICTION_STEP
-                        y2_new = p2.y + p2.v * math.sin(p2.a) * COLLISION_PREDICTION_STEP
+                        prediction_step = self.config.collision.prediction_step
+                        x1_new = p1.x + p1.v * math.cos(p1.a) * prediction_step
+                        y1_new = p1.y + p1.v * math.sin(p1.a) * prediction_step
+                        x2_new = p2.x + p2.v * math.cos(p2.a) * prediction_step
+                        y2_new = p2.y + p2.v * math.sin(p2.a) * prediction_step
                         dist_new = math.sqrt((x1_new - x2_new)**2 + (y1_new - y2_new)**2)
                         
                         if dist > dist_new:
@@ -273,18 +262,18 @@ class SimulationWidget(QWidget):
         
         # Изменение объема
         if self.mode == "expansion":
-            self.width += EXPANSION_RATE
+            self.width += self.config.state_change.expansion_rate
         elif self.mode == "compression":
-            self.width -= COMPRESSION_RATE
+            self.width -= self.config.state_change.compression_rate
         
         # Изменение температуры
         if self.mode == "heat":
             for particle in self.particles:
-                particle.v += HEAT_RATE
-        elif self.mode == "freeze" and self.counter >= FREEZE_MIN_COUNTER:
+                particle.v += self.config.state_change.heat_rate
+        elif self.mode == "freeze" and self.counter >= self.config.state_change.freeze_min_counter:
             for particle in self.particles:
-                if particle.v - FREEZE_RATE > 0:
-                    particle.v -= FREEZE_RATE
+                if particle.v - self.config.state_change.freeze_rate > 0:
+                    particle.v -= self.config.state_change.freeze_rate
         
         # Расчет энергии системы
         self.Energy_check = 0
@@ -374,6 +363,11 @@ class SimulationWidget(QWidget):
         self.mode = "OFF"
         self.NOW_TIME = 0
         self.counter = 0
+        self.timer = 0  # Сброс таймера для логирования
+        self.delta_px_left = 0
+        self.delta_px_right = 0
+        self.delta_py_up = 0
+        self.delta_py_down = 0
         self.Pressure = []
         self.Temperature = []
         self.Volume = []
@@ -387,8 +381,9 @@ class SimulationWidget(QWidget):
         self.collision_count = 0
         self.init_particles()
         self.running = True
-        if not self.simulation_timer.isActive():
-            self.simulation_timer.start(int(self.time_sleep * 1000))
+        # Перезапускаем таймер с актуальным интервалом
+        self.simulation_timer.stop()
+        self.simulation_timer.start(int(self.time_sleep * 1000))
     
     def get_statistics(self):
         """Получение статистики"""
@@ -403,3 +398,40 @@ class SimulationWidget(QWidget):
             'particle_count': self.nn,
             'current_pressure': self.Pressure[-1] if self.Pressure else 0
         }
+    
+    def apply_config(self, config: AppConfig):
+        """
+        Применить новую конфигурацию и перезапустить симуляцию.
+        
+        Args:
+            config: Новая конфигурация приложения
+        """
+        # Остановить текущую симуляцию
+        self.simulation_timer.stop()
+        
+        # Обновить конфигурацию
+        self.config = config
+        
+        # Обновить размеры окна симуляции
+        self.width0 = config.simulation_window.width
+        self.height0 = config.simulation_window.height
+        self.setFixedSize(int(self.width0 * 1.5), self.height0)
+        
+        # Обновить параметры частиц
+        self.nn = config.particles.count
+        self.r1 = config.particles.radius
+        self.m1 = config.particles.mass
+        self.v_start = config.particles.initial_speed
+        
+        # Обновить параметры времени
+        self.time_sleep = config.time.time_step
+        self.time_check = config.time.check_interval
+        
+        # Обновить буфер логов
+        self.log_buffer = deque(maxlen=config.logging.buffer_size)
+        
+        # Обновить стиль
+        self.setStyleSheet(f"background-color: {config.ui_colors.background_color};")
+        
+        # Полный сброс симуляции
+        self.reset_simulation()

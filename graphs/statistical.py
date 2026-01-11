@@ -3,7 +3,9 @@
 """
 import numpy as np
 
-from config import ROLLING_WINDOW_DIVISOR, EMA_ALPHA
+# Дефолтные значения для статистических графиков
+ROLLING_WINDOW_DIVISOR = 10
+EMA_ALPHA = 0.1
 
 
 def update_statistical_graphs(figure, canvas, data):

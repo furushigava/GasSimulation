@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
-from config import GRAPH_WINDOW_WIDTH, GRAPH_WINDOW_HEIGHT, FIGURE_SIZE, GRAPH_UPDATE_INTERVAL
+from schemas import AppConfig
 from .thermodynamic import update_thermodynamic_graphs
 from .distribution import update_distribution_graphs
 from .kinetic import update_kinetic_graphs
@@ -23,11 +23,23 @@ from .realtime import update_realtime_graphs
 class GraphWindow(QDialog):
     """Окно с графиками симуляции газа."""
     
-    def __init__(self, simulation_widget, parent=None):
+    def __init__(self, simulation_widget, parent=None, config: AppConfig = None):
         super().__init__(parent)
         self.simulation = simulation_widget
+        self.config = config if config is not None else AppConfig.get_default()
+        
         self.setWindowTitle("Графики симуляции газа")
-        self.setGeometry(100, 100, GRAPH_WINDOW_WIDTH, GRAPH_WINDOW_HEIGHT)
+        self.setGeometry(
+            100, 100, 
+            self.config.graph_window.width, 
+            self.config.graph_window.height
+        )
+        
+        # Размер фигур
+        self.figure_size = (
+            self.config.graph_window.figure_width,
+            self.config.graph_window.figure_height
+        )
         
         # Флаг для отслеживания подключения сигнала
         self._connected = False
@@ -39,6 +51,7 @@ class GraphWindow(QDialog):
         # Счетчик для регулировки частоты обновления графиков
         self.update_counter = 0
         self.cached_data = {}
+        self.graph_update_interval = self.config.graph_update.update_interval
         
         # Создание вкладок
         self.tab_widget = QTabWidget()
@@ -87,7 +100,7 @@ class GraphWindow(QDialog):
         layout = QVBoxLayout()
         
         # Создание фигур с графиками
-        self.figure_thermo = Figure(figsize=FIGURE_SIZE)
+        self.figure_thermo = Figure(figsize=self.figure_size)
         self.canvas_thermo = FigureCanvas(self.figure_thermo)
         self.toolbar_thermo = NavigationToolbar(self.canvas_thermo, self)
         
@@ -102,7 +115,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_dist = Figure(figsize=FIGURE_SIZE)
+        self.figure_dist = Figure(figsize=self.figure_size)
         self.canvas_dist = FigureCanvas(self.figure_dist)
         self.toolbar_dist = NavigationToolbar(self.canvas_dist, self)
         
@@ -117,7 +130,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_kinetic = Figure(figsize=FIGURE_SIZE)
+        self.figure_kinetic = Figure(figsize=self.figure_size)
         self.canvas_kinetic = FigureCanvas(self.figure_kinetic)
         self.toolbar_kinetic = NavigationToolbar(self.canvas_kinetic, self)
         
@@ -132,7 +145,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_corr = Figure(figsize=FIGURE_SIZE)
+        self.figure_corr = Figure(figsize=self.figure_size)
         self.canvas_corr = FigureCanvas(self.figure_corr)
         self.toolbar_corr = NavigationToolbar(self.canvas_corr, self)
         
@@ -147,7 +160,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_stat = Figure(figsize=FIGURE_SIZE)
+        self.figure_stat = Figure(figsize=self.figure_size)
         self.canvas_stat = FigureCanvas(self.figure_stat)
         self.toolbar_stat = NavigationToolbar(self.canvas_stat, self)
         
@@ -162,7 +175,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_phase = Figure(figsize=FIGURE_SIZE)
+        self.figure_phase = Figure(figsize=self.figure_size)
         self.canvas_phase = FigureCanvas(self.figure_phase)
         self.toolbar_phase = NavigationToolbar(self.canvas_phase, self)
         
@@ -177,7 +190,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_advanced = Figure(figsize=FIGURE_SIZE)
+        self.figure_advanced = Figure(figsize=self.figure_size)
         self.canvas_advanced = FigureCanvas(self.figure_advanced)
         self.toolbar_advanced = NavigationToolbar(self.canvas_advanced, self)
         
@@ -192,7 +205,7 @@ class GraphWindow(QDialog):
         tab = QWidget()
         layout = QVBoxLayout()
         
-        self.figure_realtime = Figure(figsize=FIGURE_SIZE)
+        self.figure_realtime = Figure(figsize=self.figure_size)
         self.canvas_realtime = FigureCanvas(self.figure_realtime)
         self.toolbar_realtime = NavigationToolbar(self.canvas_realtime, self)
         
@@ -211,8 +224,8 @@ class GraphWindow(QDialog):
         self.cached_data = data
         self.update_counter += 1
         
-        # Обновляем графики только каждые GRAPH_UPDATE_INTERVAL тиков
-        if self.update_counter >= GRAPH_UPDATE_INTERVAL:
+        # Обновляем графики только каждые graph_update_interval тиков
+        if self.update_counter >= self.graph_update_interval:
             self.update_counter = 0
             self.update_current_tab(data)
     
