@@ -117,8 +117,8 @@ def update_boltzmann_graphs(figure, canvas, data):
     g = gravity_config.get('g', 0.1)
     gravity_enabled = gravity_config.get('enabled', False)
     
-    # Температура из симуляции
-    T_sim = temperature_data[-1] * 100 if temperature_data else 1.0
+    # Температура из симуляции (значение уже передаётся из симуляции)
+    T_sim = temperature_data[-1] if temperature_data else 1.0
     
     # Извлекаем высоты (y координата, но инвертируем: h = max_y - y)
     heights = []
@@ -236,7 +236,7 @@ def update_boltzmann_graphs(figure, canvas, data):
     time_data = data.get('time', [])
     
     if T_history and time_data and len(T_history) == len(time_data):
-        ax4.plot(time_data, [t * 100 for t in data.get('temperature', [])], 
+        ax4.plot(time_data, data.get('temperature', []), 
                  'b-', linewidth=2, label='T (симуляция)')
         ax4.plot(time_data, T_history, 'r--', linewidth=2, label='T (из Больцмана)')
         ax4.legend(loc='best', fontsize=8)
