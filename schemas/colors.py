@@ -94,6 +94,10 @@ class ModeColorsConfig(ConfigSection):
     freeze: str = Field(default='#203d5c', title="Охлаждение")
     expansion: str = Field(default='#205c20', title="Расширение")
     compression: str = Field(default='#5c5c20', title="Сжатие")
+    heat_expansion: str = Field(default='#5c4020', title="Нагрев+Расширение")
+    heat_compression: str = Field(default='#5c3030', title="Нагрев+Сжатие")
+    cool_expansion: str = Field(default='#205c5c', title="Охлаждение+Расширение")
+    cool_compression: str = Field(default='#404060', title="Охлаждение+Сжатие")
     
     def to_dict_by_mode(self) -> Dict[str, str]:
         """Вернуть словарь mode -> color для UI."""
@@ -102,7 +106,11 @@ class ModeColorsConfig(ConfigSection):
             'heat': self.heat,
             'freeze': self.freeze,
             'expansion': self.expansion,
-            'compression': self.compression
+            'compression': self.compression,
+            'heat_expansion': self.heat_expansion,
+            'heat_compression': self.heat_compression,
+            'cool_expansion': self.cool_expansion,
+            'cool_compression': self.cool_compression
         }
 
 
@@ -114,6 +122,10 @@ class ModeIndicatorColorsConfig(ConfigSection):
     freeze: str = Field(default='blue', title="Охлаждение")
     expansion: str = Field(default='green', title="Расширение")
     compression: str = Field(default='orange', title="Сжатие")
+    heat_expansion: str = Field(default='#FF8800', title="Нагрев+Расширение")
+    heat_compression: str = Field(default='#FF4400', title="Нагрев+Сжатие")
+    cool_expansion: str = Field(default='#00CCCC', title="Охлаждение+Расширение")
+    cool_compression: str = Field(default='#6666AA', title="Охлаждение+Сжатие")
     
     def to_dict_by_mode(self) -> Dict[str, str]:
         """Вернуть словарь mode -> color для графиков."""
@@ -122,5 +134,9 @@ class ModeIndicatorColorsConfig(ConfigSection):
             'heat': self.heat,
             'freeze': self.freeze,
             'expansion': self.expansion,
-            'compression': self.compression
+            'compression': self.compression,
+            'heat_expansion': self.heat_expansion,
+            'heat_compression': self.heat_compression,
+            'cool_expansion': self.cool_expansion,
+            'cool_compression': self.cool_compression
         }

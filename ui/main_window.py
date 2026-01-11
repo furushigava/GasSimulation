@@ -76,12 +76,19 @@ class MainWindow(QMainWindow):
         self.btn_corner_start.setCheckable(True)
         self.btn_corner_start.setChecked(self.config.experiment.corner_start)
         
+        # Кнопки комбинированных процессов
+        self.btn_heat_expansion = QPushButton("Нагрев+Расш.")
+        self.btn_heat_compression = QPushButton("Нагрев+Сжат.")
+        self.btn_cool_expansion = QPushButton("Охлажд.+Расш.")
+        self.btn_cool_compression = QPushButton("Охлажд.+Сжат.")
+        
         # Настройка кнопок - размещаем по 4 кнопки в ряд
         buttons = [
             self.btn_heat, self.btn_freeze, self.btn_expansion, self.btn_compression,
+            self.btn_heat_expansion, self.btn_heat_compression, self.btn_cool_expansion, self.btn_cool_compression,
             self.btn_off, self.btn_stop, self.btn_start, self.btn_reset,
-            self.btn_statistics, self.btn_graphs, self.btn_settings, self.btn_exit,
-            self.btn_isolated, self.btn_brownian, self.btn_gravity, self.btn_corner_start
+            self.btn_isolated, self.btn_brownian, self.btn_gravity, self.btn_corner_start,
+            self.btn_statistics, self.btn_graphs, self.btn_settings, self.btn_exit
         ]
         
         for i, btn in enumerate(buttons):
@@ -91,7 +98,7 @@ class MainWindow(QMainWindow):
             col = i % 4
             params_layout.addWidget(btn, row, col)
         
-        # Параметры - добавляем в строку 4 (после 4 рядов кнопок: 0, 1, 2, 3)
+        # Параметры - добавляем в строку 5 (после 5 рядов кнопок: 0, 1, 2, 3, 4)
         stats_layout = QHBoxLayout()
         
         self.lbl_particles = QLabel(f"Частиц: {self.config.particles.count}")
@@ -106,8 +113,8 @@ class MainWindow(QMainWindow):
             lbl.setStyleSheet(f"background-color: {label_bg_color}; color: {label_text_color}; padding: 5px; border-radius: 3px;")
             stats_layout.addWidget(lbl)
         
-        # Строка 4 - после кнопок в строках 0, 1, 2, 3
-        params_layout.addLayout(stats_layout, 4, 0, 1, 4)
+        # Строка 5 - после кнопок в строках 0, 1, 2, 3, 4
+        params_layout.addLayout(stats_layout, 5, 0, 1, 4)
         
         params_group.setLayout(params_layout)
         params_group.setStyleSheet(f"QGroupBox {{ color: {group_text_color}; font-weight: bold; }}")
@@ -209,6 +216,12 @@ class MainWindow(QMainWindow):
         self.btn_statistics.clicked.connect(self.show_statistics)
         self.btn_settings.clicked.connect(self.show_settings)
         self.btn_exit.clicked.connect(self.close)
+        
+        # Комбинированные процессы
+        self.btn_heat_expansion.clicked.connect(lambda: self.simulation.set_mode("heat_expansion"))
+        self.btn_heat_compression.clicked.connect(lambda: self.simulation.set_mode("heat_compression"))
+        self.btn_cool_expansion.clicked.connect(lambda: self.simulation.set_mode("cool_expansion"))
+        self.btn_cool_compression.clicked.connect(lambda: self.simulation.set_mode("cool_compression"))
         
         # Экспериментальные режимы
         self.btn_isolated.clicked.connect(self.toggle_isolated_system)

@@ -656,16 +656,30 @@ class SimulationWidget(QWidget):
         
         # Изменение объема (только если система не изолирована)
         if not is_isolated:
+            # Простые режимы изменения объема
             if self.mode == "expansion":
                 self.width += self.config.state_change.expansion_rate
             elif self.mode == "compression":
                 self.width -= self.config.state_change.compression_rate
+            # Комбинированные режимы изменения объема
+            elif self.mode in ["heat_expansion", "cool_expansion"]:
+                self.width += self.config.state_change.expansion_rate
+            elif self.mode in ["heat_compression", "cool_compression"]:
+                self.width -= self.config.state_change.compression_rate
             
-            # Изменение температуры
+            # Простые режимы изменения температуры
             if self.mode == "heat":
                 for particle in self.particles:
                     particle.v += self.config.state_change.heat_rate
             elif self.mode == "freeze" and self.counter >= self.config.state_change.freeze_min_counter:
+                for particle in self.particles:
+                    if particle.v - self.config.state_change.freeze_rate > 0:
+                        particle.v -= self.config.state_change.freeze_rate
+            # Комбинированные режимы изменения температуры
+            elif self.mode in ["heat_expansion", "heat_compression"]:
+                for particle in self.particles:
+                    particle.v += self.config.state_change.heat_rate
+            elif self.mode in ["cool_expansion", "cool_compression"] and self.counter >= self.config.state_change.freeze_min_counter:
                 for particle in self.particles:
                     if particle.v - self.config.state_change.freeze_rate > 0:
                         particle.v -= self.config.state_change.freeze_rate
@@ -857,7 +871,10 @@ class SimulationWidget(QWidget):
         # Проверяем изолированность системы
         is_isolated = getattr(self.config.experiment, 'isolated_system', False)
         
-        if is_isolated and mode in ["heat", "freeze", "expansion", "compression"]:
+        blocked_modes = ["heat", "freeze", "expansion", "compression",
+                        "heat_expansion", "heat_compression", 
+                        "cool_expansion", "cool_compression"]
+        if is_isolated and mode in blocked_modes:
             # В изолированной системе нельзя менять энергию и объем
             return
         
