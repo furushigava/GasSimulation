@@ -332,13 +332,96 @@ class ConfigWindow(QDialog):
     
     def _create_physics_tab(self):
         """Создать таб с физическими параметрами."""
-        sections = [
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        
+        # Основные физические секции
+        basic_sections = [
             ('gravity', 'Гравитация'),
             ('brownian', 'Броуновское движение'),
             ('experiment', 'Экспериментальные режимы'),
         ]
-        tab = self._create_tab_with_scroll(sections)
+        
+        for section_attr, title in basic_sections:
+            section = getattr(self.config, section_attr)
+            group = QGroupBox(title)
+            group_layout = QVBoxLayout(group)
+            
+            section_widget = ConfigSectionWidget(section, section_attr)
+            self.section_widgets[section_attr] = section_widget
+            group_layout.addWidget(section_widget)
+            
+            content_layout.addWidget(group)
+        
+        # Секция потенциалов взаимодействия
+        potentials_group = QGroupBox("Потенциалы взаимодействия")
+        potentials_layout = QVBoxLayout(potentials_group)
+        
+        # Общие параметры потенциалов
+        ip = self.config.interaction_potentials
+        general_widget = ConfigSectionWidget(ip, 'interaction_potentials_general')
+        # Создаём виджеты только для max_force и softening_distance
+        self._create_potentials_general_widget(potentials_layout, ip)
+        
+        # Потенциал Леннард-Джонса
+        lj_group = QGroupBox("Потенциал Леннард-Джонса")
+        lj_layout = QVBoxLayout(lj_group)
+        lj_widget = ConfigSectionWidget(ip.lennard_jones, 'lennard_jones')
+        self.section_widgets['lennard_jones'] = lj_widget
+        lj_layout.addWidget(lj_widget)
+        potentials_layout.addWidget(lj_group)
+        
+        # Потенциал Морзе
+        morse_group = QGroupBox("Потенциал Морзе")
+        morse_layout = QVBoxLayout(morse_group)
+        morse_widget = ConfigSectionWidget(ip.morse, 'morse')
+        self.section_widgets['morse'] = morse_widget
+        morse_layout.addWidget(morse_widget)
+        potentials_layout.addWidget(morse_group)
+        
+        # Потенциал ДЛФО
+        dlvo_group = QGroupBox("Потенциал ДЛФО (Дерягина-Ландау-Фервея-Овербека)")
+        dlvo_layout = QVBoxLayout(dlvo_group)
+        dlvo_widget = ConfigSectionWidget(ip.dlvo, 'dlvo')
+        self.section_widgets['dlvo'] = dlvo_widget
+        dlvo_layout.addWidget(dlvo_widget)
+        potentials_layout.addWidget(dlvo_group)
+        
+        content_layout.addWidget(potentials_group)
+        content_layout.addStretch()
+        scroll.setWidget(content)
+        tab_layout.addWidget(scroll)
+        
         self.tab_widget.addTab(tab, "Физика")
+    
+    def _create_potentials_general_widget(self, parent_layout, ip):
+        """Создать виджеты для общих параметров потенциалов."""
+        form_layout = QFormLayout()
+        
+        # Максимальная сила
+        self.max_force_spin = QDoubleSpinBox()
+        self.max_force_spin.setDecimals(2)
+        self.max_force_spin.setRange(0.1, 100.0)
+        self.max_force_spin.setValue(ip.max_force)
+        self.max_force_spin.setToolTip("Ограничение максимальной силы для стабильности симуляции")
+        form_layout.addRow("Максимальная сила:", self.max_force_spin)
+        
+        # Смягчение
+        self.softening_spin = QDoubleSpinBox()
+        self.softening_spin.setDecimals(3)
+        self.softening_spin.setRange(0.01, 1.0)
+        self.softening_spin.setValue(ip.softening_distance)
+        self.softening_spin.setToolTip("Минимальное расстояние для избежания сингулярностей")
+        form_layout.addRow("Смягчение на близких расстояниях:", self.softening_spin)
+        
+        parent_layout.addLayout(form_layout)
     
     def _create_particles_tab(self):
         """Создать таб с параметрами частиц."""
@@ -395,8 +478,25 @@ class ConfigWindow(QDialog):
         """Собрать конфигурацию из всех виджетов."""
         config_dict = {}
         
+        # Секции потенциалов (вложенные)
+        potential_sections = {'lennard_jones', 'morse', 'dlvo'}
+        
         for section_attr, widget in self.section_widgets.items():
+            if section_attr in potential_sections:
+                continue  # Обрабатываем отдельно
             config_dict[section_attr] = widget.get_values()
+        
+        # Собираем потенциалы взаимодействия
+        interaction_potentials = {
+            'max_force': self.max_force_spin.value(),
+            'softening_distance': self.softening_spin.value(),
+        }
+        
+        for pot_name in potential_sections:
+            if pot_name in self.section_widgets:
+                interaction_potentials[pot_name] = self.section_widgets[pot_name].get_values()
+        
+        config_dict['interaction_potentials'] = interaction_potentials
         
         return AppConfig(**config_dict)
     
@@ -438,9 +538,22 @@ class ConfigWindow(QDialog):
     def _update_widgets_from_config(self, config: AppConfig):
         """Обновить все виджеты из конфигурации."""
         self.config = config
+        
+        # Секции потенциалов (вложенные)
+        potential_sections = {'lennard_jones', 'morse', 'dlvo'}
+        
         for section_attr, widget in self.section_widgets.items():
-            section = getattr(config, section_attr)
+            if section_attr in potential_sections:
+                # Вложенные секции потенциалов
+                section = getattr(config.interaction_potentials, section_attr)
+            else:
+                section = getattr(config, section_attr)
             widget.set_values(section)
+        
+        # Обновляем общие параметры потенциалов
+        ip = config.interaction_potentials
+        self.max_force_spin.setValue(ip.max_force)
+        self.softening_spin.setValue(ip.softening_distance)
     
     def _save_to_file(self):
         """Сохранить конфигурацию в файл."""

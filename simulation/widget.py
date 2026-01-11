@@ -64,6 +64,7 @@ class SimulationWidget(QWidget):
         self.Time_meas = []
         self.AvgVelocity = []
         self.KineticEnergy = []
+        self.PotentialEnergy = []
         self.Density = []
         self.VelocityDistribution = []
         self.MeanFreePath = []
@@ -93,6 +94,10 @@ class SimulationWidget(QWidget):
         self.initial_velocities = []  # Начальные скорости для "забывания"
         self.initial_positions_saved = []  # Начальные позиции
         self.correlations_history = []  # История корреляций с начальным состоянием
+        
+        # Данные для потенциальной энергии
+        self.potential_energy = 0.0  # Потенциальная энергия системы
+        self.PotentialEnergy = []  # История потенциальной энергии
         
         self.init_particles()
         
@@ -254,6 +259,234 @@ class SimulationWidget(QWidget):
         
         return avg_velocity / mean_free_path
     
+    def calculate_lennard_jones_force(self, r: float, epsilon: float, sigma: float) -> tuple:
+        """
+        Вычисление силы потенциала Леннард-Джонса.
+        
+        U(r) = 4ε[(σ/r)¹² - (σ/r)⁶]
+        F(r) = -dU/dr = 24ε/r * [2(σ/r)¹² - (σ/r)⁶]
+        
+        Returns:
+            (force_magnitude, potential_energy)
+        """
+        if r <= 0:
+            return 0.0, 0.0
+        
+        # Избегаем деления на ноль
+        softening = self.config.interaction_potentials.softening_distance
+        r = max(r, softening)
+        
+        sr6 = (sigma / r) ** 6
+        sr12 = sr6 ** 2
+        
+        # Сила (положительная = отталкивание, отрицательная = притяжение)
+        force = 24 * epsilon / r * (2 * sr12 - sr6)
+        
+        # Потенциальная энергия
+        potential = 4 * epsilon * (sr12 - sr6)
+        
+        return force, potential
+    
+    def calculate_morse_force(self, r: float, D_e: float, a: float, r_e: float) -> tuple:
+        """
+        Вычисление силы потенциала Морзе.
+        
+        U(r) = D_e * [1 - exp(-a*(r - r_e))]²
+        F(r) = -dU/dr = 2*a*D_e * [1 - exp(-a*(r - r_e))] * exp(-a*(r - r_e))
+        
+        Returns:
+            (force_magnitude, potential_energy)
+        """
+        if r <= 0:
+            return 0.0, 0.0
+        
+        exp_term = math.exp(-a * (r - r_e))
+        bracket = 1 - exp_term
+        
+        # Сила
+        force = 2 * a * D_e * bracket * exp_term
+        
+        # Потенциальная энергия
+        potential = D_e * bracket ** 2
+        
+        return force, potential
+    
+    def calculate_dlvo_force(self, r: float, R: float, A_H: float, 
+                              psi0: float, kappa_inv: float, epsilon_r: float) -> tuple:
+        """
+        Вычисление силы потенциала ДЛФО.
+        
+        Ван-дер-Ваальсово притяжение (упрощённая формула для сфер):
+        U_vdW ≈ -A_H * R / (12 * h), где h = r - 2R (поверхность-поверхность)
+        
+        Электростатическое отталкивание:
+        U_elec ≈ 64*π*ε₀*ε_r*R*(k_B*T/e)² * tanh²(eψ₀/4k_BT) * exp(-κh)
+        Упрощённо: U_elec ≈ A_elec * R * ψ₀² * exp(-h/κ⁻¹)
+        
+        Returns:
+            (force_magnitude, potential_energy)
+        """
+        # Поверхность-поверхность расстояние
+        h = r - 2 * R
+        
+        # Минимальное расстояние для избежания сингулярности
+        softening = self.config.interaction_potentials.softening_distance
+        h = max(h, softening)
+        
+        # Ван-дер-Ваальсово притяжение
+        # U_vdW = -A_H * R / (12 * h)
+        # F_vdW = -dU/dr = -A_H * R / (12 * h²)
+        U_vdW = -A_H * R / (12 * h)
+        F_vdW = -A_H * R / (12 * h ** 2)  # Отрицательная сила = притяжение
+        
+        # Электростатическое отталкивание
+        # U_elec = ε₀*ε_r * R * ψ₀² * exp(-h/κ⁻¹)
+        # F_elec = U_elec / κ⁻¹ (производная экспоненты)
+        kappa = 1.0 / kappa_inv if kappa_inv > 0 else 1.0
+        epsilon_0 = 8.854e-12  # Для нормализации используем безразмерный коэффициент
+        coeff = 2 * math.pi * epsilon_r * R * psi0 ** 2  # Упрощённый коэффициент
+        
+        exp_decay = math.exp(-kappa * h)
+        U_elec = coeff * exp_decay
+        F_elec = coeff * kappa * exp_decay  # Положительная сила = отталкивание
+        
+        # Полная сила и потенциал
+        force = F_elec + F_vdW  # F_vdW отрицательная (притяжение)
+        potential = U_vdW + U_elec
+        
+        return force, potential
+    
+    def calculate_interaction_forces(self):
+        """
+        Вычисление межмолекулярных сил для всех пар частиц.
+        
+        Returns:
+            forces: dict - словарь {particle_index: (fx, fy)}
+            total_potential: float - суммарная потенциальная энергия
+        """
+        forces = {i: [0.0, 0.0] for i in range(len(self.particles))}
+        total_potential = 0.0
+        
+        potentials = self.config.interaction_potentials
+        
+        # Проверяем, включён ли хотя бы один потенциал
+        lj = potentials.lennard_jones
+        morse = potentials.morse
+        dlvo = potentials.dlvo
+        
+        if not (lj.enabled or morse.enabled or dlvo.enabled):
+            return forces, 0.0
+        
+        max_force = potentials.max_force
+        
+        # Определяем радиус обрезки (максимальное расстояние взаимодействия)
+        cutoff = 0
+        if lj.enabled:
+            cutoff = max(cutoff, lj.sigma * lj.cutoff_multiplier)
+        if morse.enabled:
+            cutoff = max(cutoff, morse.r_e * morse.cutoff_multiplier)
+        if dlvo.enabled:
+            cutoff = max(cutoff, dlvo.cutoff_distance)
+        
+        # Перебираем все пары частиц
+        for i in range(len(self.particles)):
+            for j in range(i + 1, len(self.particles)):
+                p1 = self.particles[i]
+                p2 = self.particles[j]
+                
+                # Вычисляем расстояние
+                dx = p2.x - p1.x
+                dy = p2.y - p1.y
+                r = math.sqrt(dx**2 + dy**2)
+                
+                # Пропускаем, если за пределами радиуса обрезки
+                if r > cutoff or r <= 0:
+                    continue
+                
+                # Единичный вектор направления (от p1 к p2)
+                ux = dx / r
+                uy = dy / r
+                
+                force_magnitude = 0.0
+                pair_potential = 0.0
+                
+                # Леннард-Джонс
+                if lj.enabled and r < lj.sigma * lj.cutoff_multiplier:
+                    f_lj, u_lj = self.calculate_lennard_jones_force(
+                        r, lj.epsilon, lj.sigma
+                    )
+                    force_magnitude += f_lj
+                    pair_potential += u_lj
+                
+                # Морзе
+                if morse.enabled and r < morse.r_e * morse.cutoff_multiplier:
+                    f_morse, u_morse = self.calculate_morse_force(
+                        r, morse.D_e, morse.a, morse.r_e
+                    )
+                    force_magnitude += f_morse
+                    pair_potential += u_morse
+                
+                # ДЛФО
+                if dlvo.enabled and r < dlvo.cutoff_distance:
+                    avg_radius = (p1.radius + p2.radius) / 2
+                    f_dlvo, u_dlvo = self.calculate_dlvo_force(
+                        r, avg_radius,
+                        dlvo.hamaker_constant,
+                        dlvo.surface_potential,
+                        dlvo.debye_length,
+                        dlvo.dielectric_constant
+                    )
+                    force_magnitude += f_dlvo
+                    pair_potential += u_dlvo
+                
+                # Ограничиваем максимальную силу
+                force_magnitude = max(-max_force, min(max_force, force_magnitude))
+                
+                # Разлагаем силу на компоненты
+                # Положительная сила = отталкивание (направлена от центра к частице)
+                fx = force_magnitude * ux
+                fy = force_magnitude * uy
+                
+                # Применяем силы (по 3-му закону Ньютона)
+                forces[i][0] -= fx  # На частицу i действует сила в обратном направлении
+                forces[i][1] -= fy
+                forces[j][0] += fx  # На частицу j действует сила
+                forces[j][1] += fy
+                
+                total_potential += pair_potential
+        
+        return forces, total_potential
+    
+    def apply_interaction_forces(self, forces: dict, dt: float):
+        """
+        Применение межмолекулярных сил к частицам.
+        
+        Используем метод Верле для интегрирования:
+        a = F/m
+        v_new = v_old + a*dt
+        """
+        for i, particle in enumerate(self.particles):
+            if i not in forces:
+                continue
+            
+            fx, fy = forces[i]
+            
+            # Ускорение
+            ax = fx / particle.mass
+            ay = fy / particle.mass
+            
+            # Текущие компоненты скорости
+            vx = particle.v * math.cos(particle.a)
+            vy = particle.v * math.sin(particle.a)
+            
+            # Обновляем скорость
+            vx_new = vx + ax * dt
+            vy_new = vy + ay * dt
+            
+            # Обновляем модуль и направление скорости
+            particle.v = math.sqrt(vx_new**2 + vy_new**2)
+            particle.a = math.atan2(vy_new, vx_new)
+    
     def update_simulation(self):
         """Основной цикл симуляции"""
         if not self.running:
@@ -261,6 +494,13 @@ class SimulationWidget(QWidget):
             return
         
         self.NOW_TIME += self.time_sleep
+        
+        # Вычисляем межмолекулярные силы (потенциалы взаимодействия)
+        interaction_forces, self.potential_energy = self.calculate_interaction_forces()
+        
+        # Применяем межмолекулярные силы к частицам
+        if any(f[0] != 0 or f[1] != 0 for f in interaction_forces.values()):
+            self.apply_interaction_forces(interaction_forces, self.time_sleep)
         
         # Обновление позиций частиц
         for particle in self.particles:
@@ -452,6 +692,9 @@ class SimulationWidget(QWidget):
         
         self.Energy_check = self.Energy_translational + self.Energy_rotational
         
+        # Добавляем потенциальную энергию к полной энергии
+        self.Energy_total = self.Energy_check + self.potential_energy
+        
         # Логирование и обновление графиков
         self.counter += 1
         if self.time_check <= -self.timer + self.NOW_TIME:
@@ -485,6 +728,7 @@ class SimulationWidget(QWidget):
             self.Time_meas.append(self.NOW_TIME)
             self.AvgVelocity.append(avg_velocity)
             self.KineticEnergy.append(self.Energy_check)
+            self.PotentialEnergy.append(self.potential_energy)
             self.Density.append(density)
             self.VelocityDistribution.extend(velocities)
             self.MeanFreePath.append(mean_free_path)
@@ -572,7 +816,29 @@ class SimulationWidget(QWidget):
                 'angular_velocities': angular_velocities,
                 'energy_translational': self.Energy_translational,
                 'energy_rotational': self.Energy_rotational,
-                'energy_total': self.Energy_check
+                'energy_potential': self.potential_energy,
+                'potential_energy_history': self.PotentialEnergy,
+                'energy_total': self.Energy_total,
+                # Конфигурация потенциалов взаимодействия
+                'potentials_config': {
+                    'lennard_jones': {
+                        'enabled': self.config.interaction_potentials.lennard_jones.enabled,
+                        'epsilon': self.config.interaction_potentials.lennard_jones.epsilon,
+                        'sigma': self.config.interaction_potentials.lennard_jones.sigma
+                    },
+                    'morse': {
+                        'enabled': self.config.interaction_potentials.morse.enabled,
+                        'D_e': self.config.interaction_potentials.morse.D_e,
+                        'a': self.config.interaction_potentials.morse.a,
+                        'r_e': self.config.interaction_potentials.morse.r_e
+                    },
+                    'dlvo': {
+                        'enabled': self.config.interaction_potentials.dlvo.enabled,
+                        'hamaker_constant': self.config.interaction_potentials.dlvo.hamaker_constant,
+                        'surface_potential': self.config.interaction_potentials.dlvo.surface_potential,
+                        'debye_length': self.config.interaction_potentials.dlvo.debye_length
+                    }
+                }
             }
             self.data_updated.emit(data_dict)
             
@@ -743,6 +1009,8 @@ class SimulationWidget(QWidget):
         self.Time_meas = []
         self.AvgVelocity = []
         self.KineticEnergy = []
+        self.PotentialEnergy = []
+        self.potential_energy = 0.0
         self.Density = []
         self.VelocityDistribution = []
         self.MeanFreePath = []

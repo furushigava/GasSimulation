@@ -12,7 +12,15 @@ from typing import Optional
 from .base import ConfigSection, save_config_to_file, load_config_from_file
 from .simulation import SimulationWindowConfig, TimeConfig, StateChangeConfig, CollisionConfig
 from .particles import ParticlesConfig, MoleculeConfig
-from .physics import GravityConfig, BrownianConfig, ExperimentConfig
+from .physics import (
+    GravityConfig, 
+    BrownianConfig, 
+    ExperimentConfig,
+    LennardJonesConfig,
+    MorseConfig,
+    DLVOConfig,
+    InteractionPotentialsConfig
+)
 from .ui import MainWindowConfig, GraphWindowConfig, LoggingConfig
 from .graphs import (
     GraphUpdateConfig, 
@@ -66,6 +74,13 @@ class AppConfig(ConfigSection):
     experiment: ExperimentConfig = Field(
         default_factory=ExperimentConfig,
         title="Экспериментальные режимы"
+    )
+    
+    # Потенциалы взаимодействия
+    interaction_potentials: InteractionPotentialsConfig = Field(
+        default_factory=InteractionPotentialsConfig,
+        title="Потенциалы взаимодействия",
+        description="Леннард-Джонс, Морзе, ДЛФО"
     )
     
     # Частицы
@@ -170,6 +185,10 @@ __all__ = [
     'GravityConfig',
     'BrownianConfig',
     'ExperimentConfig',
+    'LennardJonesConfig',
+    'MorseConfig',
+    'DLVOConfig',
+    'InteractionPotentialsConfig',
     'ParticlesConfig',
     'MoleculeConfig',
     'MainWindowConfig',
