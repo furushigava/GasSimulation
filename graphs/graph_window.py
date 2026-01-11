@@ -4,7 +4,9 @@
 import datetime
 
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QWidget, QTabWidget)
+                             QPushButton, QWidget, QTabWidget,
+                             QFileDialog, QMessageBox, QCheckBox,
+                             QGroupBox, QLabel)
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -335,8 +337,12 @@ class GraphWindow(QDialog):
         if self.cached_data:
             self.update_current_tab(self.cached_data)
     
-    def update_all_graphs(self, data):
+    def update_all_graphs(self, data=None, force=False):
         """Обновление всех графиков (для сохранения)"""
+        if data is None:
+            data = self.cached_data
+        if not data:
+            return
         try:
             update_thermodynamic_graphs(self.figure_thermo, self.canvas_thermo, data)
             update_distribution_graphs(self.figure_dist, self.canvas_dist, data)
@@ -359,39 +365,140 @@ class GraphWindow(QDialog):
         self.simulation.reset_simulation()
     
     def save_graphs(self):
-        """Сохранение всех графиков"""
+        """Сохранение всех графиков с выбором папки и формата."""
+        # Создаём диалог выбора опций сохранения
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Сохранение графиков")
+        dialog.setMinimumWidth(400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Выбор папки
+        folder_layout = QHBoxLayout()
+        self._save_folder = ""
+        folder_label = QLabel("Папка: не выбрана")
+        folder_btn = QPushButton("Выбрать папку...")
+        
+        def select_folder():
+            folder = QFileDialog.getExistingDirectory(
+                dialog, "Выберите папку для сохранения",
+                "", QFileDialog.ShowDirsOnly
+            )
+            if folder:
+                self._save_folder = folder
+                folder_label.setText(f"Папка: {folder}")
+        
+        folder_btn.clicked.connect(select_folder)
+        folder_layout.addWidget(folder_label, 1)
+        folder_layout.addWidget(folder_btn)
+        layout.addLayout(folder_layout)
+        
+        # Опции формата
+        format_group = QGroupBox("Формат сохранения")
+        format_layout = QVBoxLayout(format_group)
+        
+        png_checkbox = QCheckBox("PNG (отдельные файлы для каждого графика)")
+        png_checkbox.setChecked(True)
+        pdf_checkbox = QCheckBox("PDF (все графики в одном файле)")
+        pdf_checkbox.setChecked(True)
+        
+        format_layout.addWidget(png_checkbox)
+        format_layout.addWidget(pdf_checkbox)
+        layout.addWidget(format_group)
+        
+        # Кнопки
+        buttons_layout = QHBoxLayout()
+        save_btn = QPushButton("Сохранить")
+        cancel_btn = QPushButton("Отмена")
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(save_btn)
+        buttons_layout.addWidget(cancel_btn)
+        layout.addLayout(buttons_layout)
+        
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        def do_save():
+            if not self._save_folder:
+                QMessageBox.warning(dialog, "Ошибка", "Выберите папку для сохранения!")
+                return
+            if not png_checkbox.isChecked() and not pdf_checkbox.isChecked():
+                QMessageBox.warning(dialog, "Ошибка", "Выберите хотя бы один формат!")
+                return
+            dialog.accept()
+        
+        save_btn.clicked.connect(do_save)
+        
+        if dialog.exec_() != QDialog.Accepted:
+            return
+        
+        # Выполняем сохранение
+        import os
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Сохраняем каждый график отдельно
+        # Список всех фигур и их canvas
         figures = [
-            (self.figure_thermo, "thermodynamic"),
-            (self.figure_dist, "distribution"),
-            (self.figure_kinetic, "kinetic"),
-            (self.figure_corr, "correlation"),
-            (self.figure_advanced, "advanced"),
-            (self.figure_realtime, "realtime"),
-            (self.figure_energy, "energy_conservation"),
-            (self.figure_brownian, "brownian"),
-            (self.figure_boltzmann, "boltzmann"),
-            (self.figure_entropy, "entropy"),
-            (self.figure_ergodic, "ergodic"),
-            (self.figure_rotational, "rotational")
+            (self.figure_thermo, self.canvas_thermo, "thermodynamic", "Термодинамика"),
+            (self.figure_dist, self.canvas_dist, "distribution", "Распределения"),
+            (self.figure_kinetic, self.canvas_kinetic, "kinetic", "Кинетика"),
+            (self.figure_corr, self.canvas_corr, "correlation", "Корреляции"),
+            (self.figure_advanced, self.canvas_advanced, "advanced", "Расширенный анализ"),
+            (self.figure_realtime, self.canvas_realtime, "realtime", "Реальное время"),
+            (self.figure_energy, self.canvas_energy, "energy_conservation", "Сохранение энергии"),
+            (self.figure_brownian, self.canvas_brownian, "brownian", "Броуновское движение"),
+            (self.figure_boltzmann, self.canvas_boltzmann, "boltzmann", "Распределение Больцмана"),
+            (self.figure_entropy, self.canvas_entropy, "entropy", "Энтропия"),
+            (self.figure_ergodic, self.canvas_ergodic, "ergodic", "Эргодичность"),
+            (self.figure_rotational, self.canvas_rotational, "rotational", "Вращательные степени свободы")
         ]
         
-        for fig, name in figures:
-            filename = f"gas_simulation_{name}_{timestamp}.png"
-            fig.savefig(filename, dpi=150, bbox_inches='tight')
-            print(f"График сохранен: {filename}")
+        # Принудительно обновляем все графики перед сохранением
+        if self.cached_data:
+            self.update_all_graphs(force=True)
         
-        # Сохраняем все графики в один PDF
-        from matplotlib.backends.backend_pdf import PdfPages
+        # Перерисовываем все canvas
+        for fig, canvas, name, title in figures:
+            canvas.draw()
         
-        pdf_filename = f"gas_simulation_all_{timestamp}.pdf"
-        with PdfPages(pdf_filename) as pdf:
-            for fig, name in figures:
-                pdf.savefig(fig, bbox_inches='tight')
+        saved_files = []
+        errors = []
         
-        print(f"Все графики сохранены в PDF: {pdf_filename}")
+        # Сохраняем PNG
+        if png_checkbox.isChecked():
+            for fig, canvas, name, title in figures:
+                try:
+                    filename = os.path.join(self._save_folder, f"gas_simulation_{name}_{timestamp}.png")
+                    fig.savefig(filename, dpi=150, bbox_inches='tight', facecolor='white', edgecolor='none')
+                    saved_files.append(filename)
+                except Exception as e:
+                    errors.append(f"PNG {name}: {e}")
+        
+        # Сохраняем PDF
+        if pdf_checkbox.isChecked():
+            try:
+                from matplotlib.backends.backend_pdf import PdfPages
+                
+                pdf_filename = os.path.join(self._save_folder, f"gas_simulation_all_{timestamp}.pdf")
+                with PdfPages(pdf_filename) as pdf:
+                    for fig, canvas, name, title in figures:
+                        # Сохраняем без изменения фигуры
+                        pdf.savefig(fig, dpi=150, bbox_inches='tight', facecolor='white', edgecolor='none')
+                saved_files.append(pdf_filename)
+            except Exception as e:
+                errors.append(f"PDF: {e}")
+        
+        # Показываем результат
+        if errors:
+            error_msg = "\n".join(errors)
+            QMessageBox.warning(
+                self, "Ошибки при сохранении",
+                f"Некоторые файлы не удалось сохранить:\n{error_msg}"
+            )
+        
+        if saved_files:
+            QMessageBox.information(
+                self, "Сохранение завершено",
+                f"Сохранено файлов: {len(saved_files)}\nПапка: {self._save_folder}"
+            )
 
     def closeEvent(self, event):
         """Обработка закрытия окна - отключаем сигнал для предотвращения лагов"""
