@@ -40,6 +40,16 @@ def update_advanced_graphs(figure, canvas, data):
             ax1.set_ylabel('Амплитуда')
             ax1.set_title('Спектр давления (Фурье)')
             ax1.grid(True, alpha=0.3)
+            # Аннотация: пиковая частота и амплитуда
+            try:
+                peak_idx = np.argmax(magnitude)
+                peak_freq = positive_freq[peak_idx]
+                peak_amp = magnitude[peak_idx]
+                info_text = f'Peak: {peak_freq:.3f} Hz\nAmp: {peak_amp:.3f}'
+                ax1.text(0.02, 0.98, info_text, transform=ax1.transAxes, fontsize=8,
+                         va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
+            except Exception:
+                pass
     
     # 2. Вейвлет-преобразование (упрощенное)
     ax2 = figure.add_subplot(232)
@@ -62,6 +72,21 @@ def update_advanced_graphs(figure, canvas, data):
         ax2.set_xlabel('Время')
         ax2.set_ylabel('Масштаб')
         ax2.set_title('Вейвлет-преобразование давления')
+        # Аннотация: максимум по времени и масштабу
+        try:
+            max_pos = np.unravel_index(np.argmax(np.abs(cwt_matrix)), cwt_matrix.shape)
+            max_scale = scales[max_pos[0]]
+            # индекс времени в матрице соответствует столбцу
+            time_idx = max_pos[1]
+            # безопасно вычислим приближённое время
+            t0 = data['time'][0]
+            t1 = data['time'][-1]
+            approx_time = np.interp(time_idx, [0, cwt_matrix.shape[1]-1], [t0, t1])
+            info_text = f'Max amp at:\nscale: {max_scale}\ntime: {approx_time:.3f}'
+            ax2.text(0.02, 0.98, info_text, transform=ax2.transAxes, fontsize=8,
+                     va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
+        except Exception:
+            pass
     
     # 3. График Пуанкаре
     ax3 = figure.add_subplot(233)
@@ -76,6 +101,14 @@ def update_advanced_graphs(figure, canvas, data):
         ax3.set_ylabel('P(t+1)')
         ax3.set_title('Сечение Пуанкаре')
         ax3.grid(True, alpha=0.3)
+        # Аннотация: коэффициент корреляции между P(t) и P(t+1)
+        try:
+            r = np.corrcoef(pressure[:-1], pressure[1:])[0, 1]
+            info_text = f'r: {r:.3f}'
+            ax3.text(0.02, 0.98, info_text, transform=ax3.transAxes, fontsize=8,
+                     va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
+        except Exception:
+            pass
     
     # 4. Фрактальная размерность (упрощенно)
     ax4 = figure.add_subplot(234)
@@ -102,6 +135,16 @@ def update_advanced_graphs(figure, canvas, data):
             ax4.set_ylabel('Количество ящиков')
             ax4.set_title('Фрактальная размерность (метод ящиков)')
             ax4.grid(True, alpha=0.3)
+            # Аннотация: приближённая оценка размерности (наклон log-log)
+            try:
+                logs = np.log(box_sizes)
+                logc = np.log(counts)
+                slope, intercept = np.polyfit(logs, logc, 1)
+                info_text = f'log-slope: {slope:.3f}'
+                ax4.text(0.02, 0.98, info_text, transform=ax4.transAxes, fontsize=8,
+                        va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
+            except Exception:
+                pass
     
     # 5. Анализ Херста (R/S анализ)
     ax5 = figure.add_subplot(235)
@@ -151,7 +194,18 @@ def update_advanced_graphs(figure, canvas, data):
             ax5.set_ylabel('R/S отношение')
             ax5.set_title('Анализ Херста (R/S анализ)')
             ax5.grid(True, alpha=0.3)
-    
+                # Аннотация: оценка показателя Херста (наклон log-log)
+            try:
+                logs = np.log(valid_sizes)
+                logr = np.log(valid_rs)
+                hurst_slope, _ = np.polyfit(logs, logr, 1)
+                # Hurst примерно равен наклону
+                info_text = f'H ≈ {hurst_slope:.3f}'
+                ax5.text(0.02, 0.98, info_text, transform=ax5.transAxes, fontsize=8,
+                            va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
+            except Exception:
+                pass
+
     # 6. График Лоренца
     ax6 = figure.add_subplot(236)
     if data.get('velocities') and len(data['velocities']) > 20:
@@ -173,8 +227,13 @@ def update_advanced_graphs(figure, canvas, data):
         area_under_curve = trapz_func(cumulative_vel_norm, dx=1/n) if trapz_func else 0.5
         gini = 1 - 2 * area_under_curve
         
-        ax6.text(0.6, 0.2, f'Коэфф. Джини: {gini:.3f}', 
-                transform=ax6.transAxes, bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        # Аннотация: коэфф. Джини (в верхнем левом углу, в стиле других графиков)
+        try:
+            info_text = f'Коэфф. Джини: {gini:.3f}'
+            ax6.text(0.02, 0.98, info_text, transform=ax6.transAxes, fontsize=8,
+                     va='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.6))
+        except Exception:
+            pass
         
         ax6.set_xlabel('Доля частиц')
         ax6.set_ylabel('Доля суммарной скорости')

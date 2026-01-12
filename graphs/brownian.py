@@ -104,7 +104,7 @@ def update_brownian_graphs(figure, canvas, data):
     time_data = data.get('time', [])
     msd_data = data.get('msd', [])
     brownian_config = data.get('brownian_config', {})
-    temperature = data.get('temperature', [0])[-1] * 100 if data.get('temperature') else 1.0
+    temperature = data.get('temperature', [0])[-1] if data.get('temperature') else 1.0
     
     # Параметры из конфигурации
     time_step = data.get('time_step', 0.1)
@@ -312,7 +312,7 @@ def update_brownian_graphs(figure, canvas, data):
   ⟨r²⟩ ∝ t^α
   {"✓ Норм. диффузия" if abs(alpha - 1) < 0.2 else "⚠ Аномальная"}
 """
-    
+    # print(stats_text)
     ax6.text(0.05, 0.95, stats_text, transform=ax6.transAxes, fontsize=8,
             verticalalignment='top', fontfamily='monospace',
             bbox=dict(boxstyle='round', facecolor='lightcyan', alpha=0.8))
