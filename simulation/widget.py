@@ -621,12 +621,17 @@ class SimulationWidget(QWidget):
                 p1 = self.particles[i]
                 p2 = self.particles[j]
                 
-                if (abs(p1.x - p2.x) <= self.config.collision.distance_multiplier * p1.radius and 
-                    abs(p1.y - p2.y) <= self.config.collision.distance_multiplier * p1.radius):
+                # Используем фактический радиус каждой частицы
+                radius_sum = p1.radius + p2.radius
+                distance_multiplier = self.config.collision.distance_multiplier
+                
+                if (abs(p1.x - p2.x) <= distance_multiplier * radius_sum and 
+                    abs(p1.y - p2.y) <= distance_multiplier * radius_sum):
                     
                     dist = math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
                     
-                    if dist <= p1.radius * 2 + self.config.collision.overlap_threshold:
+                    # Используем сумму фактических радиусов
+                    if dist <= radius_sum + self.config.collision.overlap_threshold:
                         collisions_this_frame += 1
                         
                         # Рассчитываем новые положения
@@ -985,6 +990,7 @@ class SimulationWidget(QWidget):
                 }
             }
             # print(f"volume: {volume}")
+            # print( int(self.r1 * getattr(self.config.brownian, 'large_radius_multiplier', 3.0)) )
             self.data_updated.emit(data_dict)
             
             # Сброс счетчиков импульса
