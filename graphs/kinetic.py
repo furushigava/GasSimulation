@@ -52,11 +52,11 @@ def update_kinetic_graphs(figure, canvas, data):
         # plot available series (use safe_plot to avoid shape mismatches)
         if data.get('mean_free_path'):
             series = data['mean_free_path']
-            if safe_plot(times, series, 'r-', linewidth=2, label='Эмпирич. mfp'):
+            if safe_plot(times, series, 'r-', linewidth=2, label='Эмпирическое'):
                 has_plotted = True
         if data.get('mean_free_path_theoretical'):
             series_t = data['mean_free_path_theoretical']
-            if safe_plot(times, series_t, 'k--', linewidth=1.5, label='Теор. mfp'):
+            if safe_plot(times, series_t, 'k--', linewidth=1.5, label='Теоретическое'):
                 has_plotted = True
         # По умолчанию не рисуем эффект. линию — рисуем только если ошибка эмпирич. vs теор. > 10%
         draw_eff = False
