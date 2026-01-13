@@ -223,9 +223,9 @@ class BrownianConfig(ConfigSection):
         description="Во сколько раз масса броуновской частицы больше обычной"
     )
     large_radius_multiplier: float = Field(
-        default=3.0,
-        ge=1.0,
-        le=200.0,
+        default=10.0,
+        ge=2.0,
+        le=50.0,
         title="Множитель радиуса",
         description="Во сколько раз радиус броуновской частицы больше обычной"
     )
