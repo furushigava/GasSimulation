@@ -184,7 +184,7 @@ def update_boltzmann_graphs(figure, canvas, data):
     
     ax2.set_xlabel('Высота h')
     ax2.set_ylabel('Плотность ρ(h)')
-    ax2.set_title('Барометрическая формула')
+    ax2.set_title('Распределение Больцмана по высоте')
     ax2.grid(True, alpha=0.3)
     
     # 3. log(ρ) vs h (линеаризация)
